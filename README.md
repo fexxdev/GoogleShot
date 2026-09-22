@@ -26,9 +26,17 @@ npm run build
 
 1. Open a Google Doc or a Google Slides deck.
 2. Click the GoogleShot icon and then **Capture this tab**.
-3. The PDF downloads with the document name. Enable **Also save the JPEG images** to save the images too.
+3. The popup closes, the page shows a small progress panel, and the PDF downloads with the document name.
 
-The page shows a small progress panel while the capture runs. Keep the tab open until it finishes. The JPEG quality selector controls the image compression, like `--quality` on the CLI.
+On any other page the popup shows "Doesn't work here" and the capture button stays disabled. The extension follows the browser language (English and Italian).
+
+**Advanced options**:
+
+- **Pages / slides** — capture a subset. Examples: `1-5`, `2,4,7`, `3-`.
+- **Capture speed** — `Fast`, `Normal` or `Safe (slower)` for slow machines.
+- **File name** — override the PDF name. Default: the document title.
+- **JPEG quality** — image compression, like `--quality` on the CLI.
+- **Also save the JPEG images** — write the images next to the PDF.
 
 The capture uses the Chrome debugger API. Chrome shows a small "being debugged" banner while the capture runs. The extension never reads your cookies and never uploads anything.
 
@@ -138,6 +146,7 @@ The built extension files in `extension/*.js` and `extension/*.html` are generat
 
 - `GOOGLESHOT_COLOR_SCHEME` — `dark` or `light`. The captures follow the system theme. Set this to override the detection.
 - `GOOGLESHOT_HOME` — folder for the cookies and the config. Default: `~/.googleshot`.
+- `GOOGLESHOT_LANG` — `en` or `it`. The CLI follows the system language. Set this to override the detection.
 
 ## Security
 

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isDocSource, parseDocId, parseSlidesId, sanitizeFilename } from '../src/util.js';
 import { systemColorScheme } from '../src/theme.js';
+import { filterSelection, parseRange } from '../shared/range.js';
+import { t } from '../src/i18n.js';
 
 test('parseDocId accepts a document URL', () => {
   const id = '1uby7lvQyJtnuIioLKNPHqoo_p2eR6YHN1l2h73CzZIc';
@@ -33,6 +35,40 @@ test('sanitizeFilename cleans path characters', () => {
   assert.equal(sanitizeFilename(''), 'presentation');
   assert.equal(sanitizeFilename(null), 'presentation');
   assert.equal(sanitizeFilename('x'.repeat(300)).length, 120);
+});
+
+test('parseRange handles lists and intervals', () => {
+  assert.deepEqual(parseRange(''), null);
+  assert.deepEqual(parseRange('2'), [2]);
+  assert.deepEqual(parseRange('1-3'), [1, 2, 3]);
+  assert.deepEqual(parseRange('3,1-2,5'), [1, 2, 3, 5]);
+  assert.deepEqual(parseRange(' 2 - 4 '), [2, 3, 4]);
+  assert.throws(() => parseRange('0'));
+  assert.throws(() => parseRange('4-2'));
+  assert.throws(() => parseRange('x'));
+});
+
+test('filterSelection keeps the chosen pages', () => {
+  const items = ['a', 'b', 'c', 'd'];
+  assert.deepEqual(filterSelection(items, null), items);
+  assert.deepEqual(filterSelection(items, [2, 4]), ['b', 'd']);
+  assert.deepEqual(filterSelection(items, [9]), []);
+});
+
+test('t localizes and substitutes', () => {
+  const previous = process.env.GOOGLESHOT_LANG;
+  process.env.GOOGLESHOT_LANG = 'it';
+  assert.equal(t('noPages'), 'Nessuna pagina trovata.');
+  assert.equal(t('cannotFindPage', 3), 'Impossibile trovare la pagina 3 nel documento.');
+  process.env.GOOGLESHOT_LANG = 'en';
+  assert.equal(t('noPages'), 'No pages found.');
+  assert.equal(t('cannotFindPage', 3), 'Cannot find page 3 in the document.');
+  assert.equal(t('unknownKey'), 'unknownKey');
+  if (previous === undefined) {
+    delete process.env.GOOGLESHOT_LANG;
+  } else {
+    process.env.GOOGLESHOT_LANG = previous;
+  }
 });
 
 test('systemColorScheme returns light or dark', () => {

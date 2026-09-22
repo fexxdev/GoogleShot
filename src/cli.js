@@ -14,6 +14,7 @@ import { detectBrowsers, resolveBrowser } from './browsers.js';
 import { readConfig, writeConfig } from './config.js';
 import { chooseBrowser, confirm } from './prompt.js';
 import { isDocSource, parseDocId, parseSlidesId, sanitizeFilename } from './util.js';
+import { t } from './i18n.js';
 
 const HELP = `GoogleShot - screenshot every slide of a Google Slides deck or every page of a Google Doc, then build a PDF.
 
@@ -68,7 +69,7 @@ export async function runCli(argv) {
     await captureCommand(argv);
     return;
   }
-  throw new Error(`Unknown command: ${command}\n\n${HELP}`);
+  throw new Error(`${t('unknownCommand', command)}\n\n${HELP}`);
 }
 
 function parseOptions(argv) {
@@ -107,7 +108,7 @@ function parseQuality(value) {
   }
   const quality = Number(value);
   if (!Number.isFinite(quality) || quality < 1 || quality > 100) {
-    throw new Error(`Invalid quality: ${value}. Use a number from 1 to 100.`);
+    throw new Error(t('invalidQuality', value));
   }
   return Math.round(quality);
 }
@@ -118,7 +119,7 @@ async function pickBrowser({ flag = null, ask = true } = {}) {
   }
   const browsers = detectBrowsers();
   if (browsers.length === 0) {
-    throw new Error('No supported browser found. Install Brave, Chrome or Edge, then retry.');
+    throw new Error(t('noBrowserFound'));
   }
   const savedId = readConfig().browser;
   if (!ask || !process.stdin.isTTY) {
@@ -138,7 +139,7 @@ async function connectWithRestart(browser, { restart = false } = {}) {
       throw error;
     }
     const accepted = await confirm(
-      `${browser.label} is already open. Restart it in debug mode? Open tabs can be lost. [y/N]: `
+      t('restartQuestion', browser.label)
     );
     if (!accepted) {
       throw error;
@@ -159,7 +160,7 @@ async function browserCommand(argv) {
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { endpoint } = await connectWithRestart(browser, options);
-  console.log(`${browser.label} is ready with remote debugging on ${endpoint}.`);
+  console.log(t('browserReady', browser.label, endpoint));
   process.exit(0);
 }
 
@@ -172,10 +173,10 @@ async function loginCommand(argv) {
   const browser = await pickBrowser({ flag: options.browser });
   const { context } = await connectWithRestart(browser, options);
   if (await hasGoogleSession(context)) {
-    console.log(`Google session found in ${browser.label}.`);
+    console.log(t('loginFound', browser.label));
     process.exit(0);
   }
-  console.log(`No Google session in ${browser.label}. Sign in at https://accounts.google.com, then retry.`);
+  console.log(t('loginMissing', browser.label));
   process.exit(1);
 }
 
@@ -184,12 +185,12 @@ function resolveSource(input) {
     return { kind: 'doc', id: parseDocId(input) };
   }
   if (!input) {
-    throw new Error('Missing presentation or document URL or ID.');
+    throw new Error(t('missingSource'));
   }
   if (input.includes('/presentation/d/') || /^[a-zA-Z0-9_-]{20,}$/.test(input)) {
     return { kind: 'slides', id: parseSlidesId(input) };
   }
-  throw new Error(`Cannot find a presentation or document in: ${input}`);
+  throw new Error(t('cannotFindSource', input));
 }
 
 async function captureCommand(argv) {
@@ -207,13 +208,13 @@ async function captureCommand(argv) {
     const { context } = await connectWithRestart(browser, options);
     cookies = await readCookiesFromContext(context, browser.label);
     saveCookies(cookies);
-    console.log(`Session: ${cookies.length} cookies from ${browser.label}.`);
+    console.log(t('sessionCookies', cookies.length, browser.label));
   } catch (error) {
     cookies = loadCookies();
     if (!cookies) {
       throw error;
     }
-    console.log(`Session: saved cookies (${error.message.split('\n')[0]})`);
+    console.log(t('sessionSaved', error.message.split('\n')[0]));
   }
 
   const { browser: headless, context } = await launchHeadless(cookies);
@@ -243,8 +244,8 @@ async function captureCommand(argv) {
   }
   await buildPdf(result.items, pdfPath);
 
-  console.log(`\nDone. ${result.items.length} ${itemName}s.`);
-  console.log(`PDF: ${pdfPath}`);
-  console.log(`Images: ${imagesDir}`);
+  console.log(`\n${t('done', t(itemName === 'page' ? 'pagesCount' : 'slidesCount', result.items.length))}`);
+  console.log(t('pdfPath', pdfPath));
+  console.log(t('imagesPath', imagesDir));
   process.exit(0);
 }

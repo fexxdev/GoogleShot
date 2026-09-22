@@ -1,15 +1,19 @@
 const status = document.getElementById('status');
-const fill = document.getElementById('fill');
-const error = document.getElementById('error');
 const capture = document.getElementById('capture');
 const open = document.getElementById('open');
+const unsupported = document.getElementById('unsupported');
 const images = document.getElementById('images');
 const quality = document.getElementById('quality');
+const range = document.getElementById('range');
+const speed = document.getElementById('speed');
+const filename = document.getElementById('filename');
 
 const isGooglePage = (url) =>
   Boolean(url && /^https:\/\/docs\.google\.com\/(document|presentation)\/d\//.test(url));
 
 const forcedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
+
+let strings = null;
 
 async function activeTab() {
   if (forcedTabId) {
@@ -19,56 +23,70 @@ async function activeTab() {
   return tab || null;
 }
 
+function applyStrings() {
+  for (const element of document.querySelectorAll('[data-i18n]')) {
+    const key = element.getAttribute('data-i18n');
+    if (strings[key]) {
+      element.textContent = strings[key];
+    }
+  }
+  if (strings.popupRangePlaceholder) {
+    range.placeholder = strings.popupRangePlaceholder;
+  }
+  if (strings.popupFilenamePlaceholder) {
+    filename.placeholder = strings.popupFilenamePlaceholder;
+  }
+}
+
 function render(state) {
   if (!state) {
     return;
   }
-  status.textContent = state.message || 'Ready.';
-  fill.style.width = `${state.percent || 0}%`;
-  if (state.error) {
-    error.hidden = false;
-    error.textContent = state.error;
-  } else {
-    error.hidden = true;
-  }
+  status.textContent = state.message || '';
   capture.disabled = Boolean(state.running);
 }
 
 async function refresh() {
+  const response = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'strings' });
+  if (response && response.ok) {
+    strings = response.strings;
+    applyStrings();
+    status.textContent = response.status;
+  }
   const tab = await activeTab();
   const allowed = isGooglePage(tab ? tab.url : '');
-  capture.disabled = !allowed;
   if (!allowed) {
-    status.textContent = 'Open a Google Doc or a Google Slides deck first.';
-  } else {
-    const response = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'status' });
-    if (response && response.ok) {
-      render(response.state);
-    }
+    unsupported.style.display = 'block';
+    status.textContent = strings ? strings.unsupportedPage : 'Unsupported page';
   }
-  const values = await chrome.storage.local.get({ imageFolder: false, quality: 90 });
+  capture.disabled = !allowed;
+  const values = await chrome.storage.local.get({
+    imageFolder: false,
+    quality: 90,
+    range: '',
+    speed: 'normal',
+    filename: '',
+  });
   images.checked = Boolean(values.imageFolder);
   quality.value = String(values.quality);
+  range.value = values.range;
+  speed.value = values.speed;
+  filename.value = values.filename;
 }
 
 capture.addEventListener('click', async () => {
-  error.hidden = true;
-  capture.disabled = true;
-  status.textContent = 'Starting...';
+  await chrome.storage.local.set({
+    range: range.value.trim(),
+    speed: speed.value,
+    filename: filename.value.trim(),
+  });
   const tab = await activeTab();
-  const response = await chrome.runtime.sendMessage({
+  chrome.runtime.sendMessage({
     target: 'googleshot',
     method: 'capture',
     tabId: tab ? tab.id : null,
   });
-  if (response && response.ok) {
-    status.textContent = `Done. ${response.count} ${response.itemName}s.`;
-  } else {
-    status.textContent = 'Failed.';
-    error.hidden = false;
-    error.textContent = (response && response.error) || 'Unknown error.';
-  }
-  capture.disabled = false;
+  window.close();
 });
 
 open.addEventListener('click', () => {

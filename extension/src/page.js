@@ -16,6 +16,18 @@ import {
   }
   window.__googleshotChannel = true;
 
+  const messages = window.__googleshotStrings || {
+    scanning: 'Scanning the document... $COUNT$ pages found',
+    pagesFound: '$COUNT$ pages found',
+    slidesFound: '$COUNT$ slides found',
+  };
+  const format = (template, count) => template.replace('$COUNT$', String(count));
+  const strings = {
+    scanning: (count) => format(messages.scanning, count),
+    pagesFound: (count) => format(messages.pagesFound, count),
+    slidesFound: (count) => format(messages.slidesFound, count),
+  };
+
   const SLIDE_CANVAS = '#canvas';
   const SLIDE_STRIP = '.punch-filmstrip-scroll';
 
@@ -135,10 +147,7 @@ import {
       collect();
       count += 1;
       if (count % 6 === 0) {
-        show(
-          `Scanning the document... ${seen.size} pages found`,
-          Math.min(95, (position / limit) * 100)
-        );
+        show(strings.scanning(seen.size), Math.min(95, (position / limit) * 100));
       }
     }
     await docScrollTo(0);
@@ -222,13 +231,16 @@ import {
       throw new Error('Open a Google Doc or a Google Slides deck first.');
     }
     if (method === 'pages') {
+      if (args.strings) {
+        Object.assign(strings, args.strings);
+      }
       if (isDoc()) {
         const pages = await docDiscoverPages();
-        show(`${pages.length} pages found`, 0);
+        show(strings.pagesFound(pages.length), 0);
         return { kind: 'doc', pages };
       }
       const ids = await slidesCollectIds();
-      show(`${ids.length} slides found`, 0);
+      show(strings.slidesFound(ids.length), 0);
       return { kind: 'slides', slides: ids.map((id, index) => ({ index, id })) };
     }
     if (method === 'docSlice') {

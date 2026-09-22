@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "GoogleShot",
+  "name": "__MSG_appName__",
   "version": "0.2.0",
-  "description": "Capture every slide of a Google Slides deck or every page of a Google Doc as JPEG images and build a PDF.",
+  "description": "__MSG_appDescription__",
+  "default_locale": "en",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "debugger", "downloads", "scripting", "storage"],
   "host_permissions": ["https://docs.google.com/*"],
@@ -17,7 +18,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "GoogleShot",
+    "default_title": "__MSG_actionTitle__",
     "default_popup": "popup.html"
   },
   "icons": {

@@ -1,10 +1,19 @@
 import { PDFDocument } from 'pdf-lib';
+import { filterSelection, parseRange } from '../../shared/range.js';
 
 const PAGE_WIDTH = 960;
 const DEBUGGER_VERSION = '1.3';
 const DEFAULT_QUALITY = 90;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function makeSleep(multiplier) {
+  if (multiplier === 1) {
+    return sleep;
+  }
+  return (ms) => new Promise((resolve) => setTimeout(resolve, ms * multiplier));
+}
+
 
 function sendCommand(target, method, params = {}, timeout = 60000) {
   return new Promise((resolve, reject) => {
@@ -104,11 +113,13 @@ async function compose(slices, pageWidth, pageHeight, scale, quality) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-async function captureDoc(target, tabId, onProgress, quality) {
-  onProgress('Finding the pages...', 2);
-  const { pages } = await pageCall(tabId, 'pages');
+async function captureDoc(target, tabId, settings) {
+  const { onProgress, quality, strings, errors, range, sleep } = settings;
+  onProgress(strings.findingPages, 2);
+  const { pages: allPages } = await pageCall(tabId, 'pages', { strings });
+  const pages = filterSelection(allPages, range);
   if (!pages.length) {
-    throw new Error('No pages found.');
+    throw new Error(errors.noPages);
   }
   const images = [];
   for (let position = 0; position < pages.length; position += 1) {
@@ -160,11 +171,11 @@ async function captureDoc(target, tabId, onProgress, quality) {
       await pageCall(tabId, 'docScrollBy', { value: slice.clientHeight - 80 });
     }
     if (slices.length === 0 || !pageHeight) {
-      throw new Error(`Cannot capture page ${position + 1}.`);
+      throw new Error(errors.pageCapture(position + 1));
     }
     const image = await compose(slices, pageWidth, pageHeight, pageScale, quality);
     images.push(image);
-    const message = `Page ${position + 1} of ${pages.length} captured`;
+    const message = strings.capturingPage(position + 1, pages.length);
     const percent = 5 + ((position + 1) / pages.length) * 80;
     onProgress(message, percent);
     pageCall(tabId, 'show', { message, percent }).catch(() => {});
@@ -172,18 +183,20 @@ async function captureDoc(target, tabId, onProgress, quality) {
   return { images, itemName: 'page' };
 }
 
-async function captureSlides(target, tabId, onProgress, quality) {
-  onProgress('Finding the slides...', 2);
-  const { slides } = await pageCall(tabId, 'pages');
+async function captureSlides(target, tabId, settings) {
+  const { onProgress, quality, strings, errors, range, sleep } = settings;
+  onProgress(strings.findingSlides, 2);
+  const { slides: allSlides } = await pageCall(tabId, 'pages', { strings });
+  const slides = filterSelection(allSlides, range);
   if (!slides.length) {
-    throw new Error('No slides found.');
+    throw new Error(errors.noSlides);
   }
   const images = [];
   for (let position = 0; position < slides.length; position += 1) {
     const slide = slides[position];
     const arrived = await pageCall(tabId, 'slideGoTo', { id: slide.id });
     if (!arrived) {
-      throw new Error(`Cannot open slide ${position + 1}.`);
+      throw new Error(errors.slideOpen(position + 1));
     }
     await sleep(600);
     const rect = await pageCall(tabId, 'slideRect');
@@ -253,13 +266,17 @@ async function downloadImages(images, folderName, itemName) {
   }
 }
 
-export async function captureTab(tabId, onProgress = () => {}) {
+export async function captureTab(tabId, options = {}) {
+  const { onProgress = () => {}, strings, errors } = options;
   if (!tabId) {
-    throw new Error('No active tab.');
+    throw new Error(errors.noActiveTab);
+  }
+  if (!strings || !errors) {
+    throw new Error('Missing strings.');
   }
   const tab = await chrome.tabs.get(tabId);
   if (!tab || !tab.url || !tab.url.includes('docs.google.com')) {
-    throw new Error('Open a Google Doc or a Google Slides deck first.');
+    throw new Error(errors.unsupportedPage);
   }
 
   await ensurePageScript(tabId);
@@ -269,11 +286,23 @@ export async function captureTab(tabId, onProgress = () => {}) {
     await chrome.debugger.attach(target, DEBUGGER_VERSION);
     attached = true;
 
-    const { quality: storedQuality, imageFolder } = await chrome.storage.local.get({
+    const {
+      quality: storedQuality,
+      imageFolder,
+      range,
+      speed,
+      filename,
+    } = await chrome.storage.local.get({
       quality: DEFAULT_QUALITY,
       imageFolder: false,
+      range: '',
+      speed: 'normal',
+      filename: '',
     });
     const quality = Math.min(100, Math.max(1, Number(storedQuality) || DEFAULT_QUALITY));
+    const multiplier = speed === 'fast' ? 0.5 : speed === 'safe' ? 1.75 : 1;
+    const sleep = makeSleep(multiplier);
+    const selected = parseRange(range);
     const colorScheme = await pageCall(tabId, 'colorScheme');
     await sendCommand(
       target,
@@ -285,20 +314,21 @@ export async function captureTab(tabId, onProgress = () => {}) {
       10000
     );
     const description = await pageCall(tabId, 'describe');
+    const settings = { onProgress, quality, strings, errors, range: selected, sleep };
     const result =
       description.kind === 'doc'
-        ? await captureDoc(target, tabId, onProgress, quality)
-        : await captureSlides(target, tabId, onProgress, quality);
+        ? await captureDoc(target, tabId, settings)
+        : await captureSlides(target, tabId, settings);
 
-    onProgress('Building the PDF...', 90);
-    const baseName = sanitizeFilename(description.title);
+    onProgress(strings.buildingPdf, 90);
+    const baseName = sanitizeFilename(filename || description.title);
     const pdf = await buildPdf(result.images);
     if (imageFolder) {
       await downloadImages(result.images, `${baseName}_${result.itemName}s`, result.itemName);
     }
     await downloadPdf(pdf, `${baseName}.pdf`);
     await pageCall(tabId, 'hide');
-    onProgress('Done', 100);
+    onProgress(strings.done, 100);
     return { count: result.images.length, itemName: result.itemName, title: description.title };
   } catch (error) {
     try {

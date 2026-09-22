@@ -17,6 +17,18 @@
     });
   }
 
+  function injectStrings() {
+    const template = (key) => (chrome.i18n.getMessage(key) || key).replace(/\$\w+\$/, '$COUNT$');
+    const host = document.createElement('script');
+    host.textContent = `window.__googleshotStrings = ${JSON.stringify({
+      scanning: template('advScanningDocument'),
+      pagesFound: template('advPagesFound'),
+      slidesFound: template('advSlidesFound'),
+    })};`;
+    (document.head || document.documentElement).appendChild(host);
+    host.remove();
+  }
+
   window.addEventListener('message', (event) => {
     if (event.source !== window) {
       return;
@@ -48,6 +60,7 @@
         }
       };
       window.addEventListener('message', onReady);
+      injectStrings();
       injectPageScript().catch((error) => {
         clearTimeout(timer);
         reject(error);
@@ -58,6 +71,9 @@
 
   async function call(method, args = {}) {
     await ensureReady();
+    if (method === 'pages') {
+      injectStrings();
+    }
     const id = String(++counter);
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });

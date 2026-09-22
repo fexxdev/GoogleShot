@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { t } from './i18n.js';
 
 const HOME = os.homedir();
 const LOCAL_APP_DATA = process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local');
@@ -154,10 +155,10 @@ export function resolveBrowser(id) {
   const definition = DEFINITIONS.find((item) => item.id === id);
   if (!definition) {
     const names = DEFINITIONS.map((item) => item.id).join(', ');
-    throw new Error(`Unknown browser "${id}". Available: ${names}.`);
+    throw new Error(t('unknownBrowser', id, names));
   }
   if (!isInstalled(definition)) {
-    throw new Error(`${definition.label} is not installed.`);
+    throw new Error(t('browserNotInstalled', definition.label));
   }
   let executablePath = null;
   if (definition.bundled) {

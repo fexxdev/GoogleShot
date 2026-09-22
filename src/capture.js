@@ -1,4 +1,5 @@
 import { sleep } from './util.js';
+import { t } from './i18n.js';
 import {
   DOC_EDITOR_SELECTOR,
   DOC_PAGE_SELECTOR,
@@ -137,7 +138,7 @@ export async function captureDocument(
       timeout: 60000,
     });
     if (page.url().includes('accounts.google.com')) {
-      throw new Error('Google login required in the selected browser.');
+      throw new Error(t('loginRequired'));
     }
     const title = (await page.title())
       .replace(/\s*-\s*(Documenti Google|Google Docs)\s*$/i, '')
@@ -148,9 +149,9 @@ export async function captureDocument(
 
     const editor = page.locator(DOC_EDITOR_SELECTOR).first();
     if ((await editor.count()) === 0) {
-      throw new Error('Cannot find the document editor.');
+      throw new Error(t('cannotFindEditor'));
     }
-    onProgress(`Document: ${title || documentId}`);
+    onProgress(t('documentLabel', title || documentId));
 
     const byIndex = new Map();
     const remember = (list) => {
@@ -172,7 +173,7 @@ export async function captureDocument(
       position += DOC_SCROLL_STEP;
     }
     if (byIndex.size === 0) {
-      throw new Error('No pages found.');
+      throw new Error(t('noPages'));
     }
     const targets = Array.from(byIndex, ([index, targetPosition]) => ({
       index,
@@ -193,18 +194,18 @@ export async function captureDocument(
         }
       }
       if (!locator) {
-        throw new Error(`Cannot find page ${target.index + 1} in the document.`);
+        throw new Error(t('cannotFindPage', target.index + 1));
       }
       await locator.locator('canvas').first().waitFor({ state: 'visible', timeout: 15000 });
       const image = await docCapturePage(page, target.index, quality);
       if (!image) {
-        throw new Error(`Cannot capture page ${target.index + 1}.`);
+        throw new Error(t('cannotCapturePage', target.index + 1));
       }
       pages.push(image);
-      onProgress(`Page ${pages.length} of ${targets.length} captured`);
+      onProgress(t('pageCaptured', pages.length, targets.length));
     }
     if (pages.length === 0) {
-      throw new Error('No pages found.');
+      throw new Error(t('noPages'));
     }
     succeeded = true;
     return { title: title || documentId, items: pages };
@@ -228,7 +229,7 @@ export async function capturePresentation(
       timeout: 60000,
     });
     if (page.url().includes('accounts.google.com')) {
-      throw new Error('Google login required in the selected browser.');
+      throw new Error(t('loginRequired'));
     }
     const title = (await page.title())
       .replace(/\s*-\s*(Presentazioni Google|Google Slides)\s*$/i, '')
@@ -237,11 +238,11 @@ export async function capturePresentation(
     await setZoomTo100(page);
     const strip = await page.locator(FILMSTRIP_SELECTOR).first().boundingBox();
     if (!strip) {
-      throw new Error('Cannot find the slide filmstrip.');
+      throw new Error(t('cannotFindFilmstrip'));
     }
     await page.mouse.click(strip.x + 60, strip.y + 40);
     await sleep(600);
-    onProgress(`Presentation: ${title || presentationId}`);
+    onProgress(t('presentationLabel', title || presentationId));
 
     let guard = 0;
     while (guard < 2000) {
@@ -261,7 +262,7 @@ export async function capturePresentation(
       guard += 1;
       await sleep(250);
       slides.push(await page.locator(CANVAS_SELECTOR).first().screenshot({ type: 'jpeg', quality }));
-      onProgress(`Slide ${slides.length} captured`);
+      onProgress(t('slideCaptured', slides.length));
 
       const before = await currentSlideId(page);
       let moved = false;
@@ -280,7 +281,7 @@ export async function capturePresentation(
       }
     }
     if (slides.length === 0) {
-      throw new Error('No slides found.');
+      throw new Error(t('noSlides'));
     }
     succeeded = true;
     return { title: title || presentationId, items: slides };

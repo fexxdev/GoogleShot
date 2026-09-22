@@ -1,0 +1,179 @@
+{
+  "appName": {
+    "message": "GoogleShot"
+  },
+  "appDescription": {
+    "message": "Capture every slide of a Google Slides deck or every page of a Google Doc as JPEG images and build a PDF."
+  },
+  "actionTitle": {
+    "message": "GoogleShot"
+  },
+  "statusReady": {
+    "message": "Ready."
+  },
+  "statusStarting": {
+    "message": "Starting..."
+  },
+  "statusFailed": {
+    "message": "Failed"
+  },
+  "statusDone": {
+    "message": "Done. $COUNT$ captured ($ITEM$).",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "item": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusAlreadyRunning": {
+    "message": "A capture is already running."
+  },
+  "advFindingPages": {
+    "message": "Finding the pages..."
+  },
+  "advFindingSlides": {
+    "message": "Finding the slides..."
+  },
+  "advScanningDocument": {
+    "message": "Scanning the document... $COUNT$ pages found",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advPagesFound": {
+    "message": "$COUNT$ pages found",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advSlidesFound": {
+    "message": "$COUNT$ slides found",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advCapturingPage": {
+    "message": "Page $CURRENT$ of $TOTAL$ captured",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "advCapturingSlide": {
+    "message": "Slide $CURRENT$ of $TOTAL$ captured",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "advBuildingPdf": {
+    "message": "Building the PDF..."
+  },
+  "advDone": {
+    "message": "Done"
+  },
+  "errUnsupportedPage": {
+    "message": "Doesn't work here. Open a Google Doc or a Google Slides deck."
+  },
+  "errEditorMissing": {
+    "message": "The document editor did not load. Reload the tab and retry."
+  },
+  "errSlidesMissing": {
+    "message": "The presentation editor did not load. Reload the tab and retry."
+  },
+  "errNoPages": {
+    "message": "No pages found."
+  },
+  "errNoSlides": {
+    "message": "No slides found."
+  },
+  "errPageMissing": {
+    "message": "Cannot find page $NUMBER$ in the document.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errPageCapture": {
+    "message": "Cannot capture page $NUMBER$.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errSlideOpen": {
+    "message": "Cannot open slide $NUMBER$.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNoActiveTab": {
+    "message": "No active tab."
+  },
+  "popupCapture": {
+    "message": "Capture this tab"
+  },
+  "popupCaptureHint": {
+    "message": "Capture every slide of a deck or every page of a document."
+  },
+  "popupOpenDocs": {
+    "message": "Open docs.google.com"
+  },
+  "popupSaveImages": {
+    "message": "Also save the JPEG images"
+  },
+  "popupQuality": {
+    "message": "JPEG quality"
+  },
+  "popupAdvanced": {
+    "message": "Advanced options"
+  },
+  "popupRange": {
+    "message": "Pages / slides"
+  },
+  "popupRangePlaceholder": {
+    "message": "All. Example: 1-5,8"
+  },
+  "popupSpeed": {
+    "message": "Capture speed"
+  },
+  "popupSpeedFast": {
+    "message": "Fast"
+  },
+  "popupSpeedNormal": {
+    "message": "Normal"
+  },
+  "popupSpeedSafe": {
+    "message": "Safe (slower)"
+  },
+  "popupFilename": {
+    "message": "File name"
+  },
+  "popupFilenamePlaceholder": {
+    "message": "Document title"
+  },
+  "popupUnsupported": {
+    "message": "Doesn't work here. Open a Google Doc or a Google Slides deck first."
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "appName": {
+    "message": "GoogleShot"
+  },
+  "appDescription": {
+    "message": "Cattura ogni slide di una presentazione Google Slides o ogni pagina di un Documento Google come immagini JPEG e crea un PDF."
+  },
+  "actionTitle": {
+    "message": "GoogleShot"
+  },
+  "statusReady": {
+    "message": "Pronto."
+  },
+  "statusStarting": {
+    "message": "Avvio..."
+  },
+  "statusFailed": {
+    "message": "Non riuscito"
+  },
+  "statusDone": {
+    "message": "Fatto. $COUNT$ catturati ($ITEM$).",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "item": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusAlreadyRunning": {
+    "message": "Una cattura è già in corso."
+  },
+  "advFindingPages": {
+    "message": "Ricerca delle pagine..."
+  },
+  "advFindingSlides": {
+    "message": "Ricerca delle slide..."
+  },
+  "advScanningDocument": {
+    "message": "Scansione del documento... $COUNT$ pagine trovate",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advPagesFound": {
+    "message": "$COUNT$ pagine trovate",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advSlidesFound": {
+    "message": "$COUNT$ slide trovate",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "advCapturingPage": {
+    "message": "Pagina $CURRENT$ di $TOTAL$ catturata",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "advCapturingSlide": {
+    "message": "Slide $CURRENT$ di $TOTAL$ catturata",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "advBuildingPdf": {
+    "message": "Creazione del PDF..."
+  },
+  "advDone": {
+    "message": "Fatto"
+  },
+  "errUnsupportedPage": {
+    "message": "Qui non funziono. Apri un Documento Google o una presentazione Google Slides."
+  },
+  "errEditorMissing": {
+    "message": "L'editor del documento non si è caricato. Ricarica la scheda e riprova."
+  },
+  "errSlidesMissing": {
+    "message": "L'editor della presentazione non si è caricato. Ricarica la scheda e riprova."
+  },
+  "errNoPages": {
+    "message": "Nessuna pagina trovata."
+  },
+  "errNoSlides": {
+    "message": "Nessuna slide trovata."
+  },
+  "errPageMissing": {
+    "message": "Impossibile trovare la pagina $NUMBER$ nel documento.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errPageCapture": {
+    "message": "Impossibile catturare la pagina $NUMBER$.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errSlideOpen": {
+    "message": "Impossibile aprire la slide $NUMBER$.",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNoActiveTab": {
+    "message": "Nessuna scheda attiva."
+  },
+  "popupCapture": {
+    "message": "Cattura questa scheda"
+  },
+  "popupCaptureHint": {
+    "message": "Cattura ogni slide di una presentazione o ogni pagina di un documento."
+  },
+  "popupOpenDocs": {
+    "message": "Apri docs.google.com"
+  },
+  "popupSaveImages": {
+    "message": "Salva anche le immagini JPEG"
+  },
+  "popupQuality": {
+    "message": "Qualità JPEG"
+  },
+  "popupAdvanced": {
+    "message": "Opzioni avanzate"
+  },
+  "popupRange": {
+    "message": "Pagine / slide"
+  },
+  "popupRangePlaceholder": {
+    "message": "Tutte. Esempio: 1-5,8"
+  },
+  "popupSpeed": {
+    "message": "Velocità cattura"
+  },
+  "popupSpeedFast": {
+    "message": "Veloce"
+  },
+  "popupSpeedNormal": {
+    "message": "Normale"
+  },
+  "popupSpeedSafe": {
+    "message": "Sicura (più lenta)"
+  },
+  "popupFilename": {
+    "message": "Nome file"
+  },
+  "popupFilenamePlaceholder": {
+    "message": "Titolo del documento"
+  },
+  "popupUnsupported": {
+    "message": "Qui non funziono. Apri prima un Documento Google o una presentazione Google Slides."
+  }
+}

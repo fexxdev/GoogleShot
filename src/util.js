@@ -1,6 +1,8 @@
+import { t } from './i18n.js';
+
 export function parseSlidesId(input) {
   if (!input) {
-    throw new Error('Missing presentation URL or ID.');
+    throw new Error(t('missingPresentation'));
   }
   const match = input.match(/presentation\/d\/([a-zA-Z0-9_-]+)/);
   if (match) {
@@ -9,12 +11,12 @@ export function parseSlidesId(input) {
   if (/^[a-zA-Z0-9_-]{20,}$/.test(input)) {
     return input;
   }
-  throw new Error(`Cannot find a presentation ID in: ${input}`);
+  throw new Error(t('cannotFindPresentationId', input));
 }
 
 export function parseDocId(input) {
   if (!input) {
-    throw new Error('Missing document URL or ID.');
+    throw new Error(t('missingDocument'));
   }
   const match = input.match(/document\/d\/([a-zA-Z0-9_-]+)/);
   if (match) {
@@ -23,7 +25,7 @@ export function parseDocId(input) {
   if (/^[a-zA-Z0-9_-]{20,}$/.test(input)) {
     return input;
   }
-  throw new Error(`Cannot find a document ID in: ${input}`);
+  throw new Error(t('cannotFindDocumentId', input));
 }
 
 export function isDocSource(input) {

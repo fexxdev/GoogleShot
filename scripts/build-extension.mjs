@@ -42,5 +42,9 @@ await fs.copyFile(
   path.join(outdir, 'popup.html')
 );
 await fs.copyFile(path.join(root, 'extension/static/popup.js'), path.join(outdir, 'popup.js'));
+await fs.rm(path.join(outdir, '_locales'), { recursive: true, force: true });
+await fs.cp(path.join(root, 'extension/static/_locales'), path.join(outdir, '_locales'), {
+  recursive: true,
+});
 
 console.log('Extension built in ./extension');

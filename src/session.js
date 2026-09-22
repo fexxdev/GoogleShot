@@ -4,6 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { PROFILE_ROOT } from './browsers.js';
 import { systemColorScheme } from './theme.js';
+import { t } from './i18n.js';
 import { sleep } from './util.js';
 
 const PORT_CANDIDATES = [9222, 9223, 9224, 9225];
@@ -183,7 +184,7 @@ async function quitBrowser(browser) {
     }
     await sleep(500);
   }
-  throw new Error(`Could not quit ${browser.label}. Quit it manually, then retry.`);
+  throw new Error(t('cannotQuit', browser.label));
 }
 
 async function launchBrowserWithDebug(browser, port) {
@@ -200,7 +201,7 @@ async function launchBrowserWithDebug(browser, port) {
     }
     await sleep(500);
   }
-  throw new Error(`${browser.label} did not start with remote debugging.`);
+  throw new Error(t('didNotStart', browser.label));
 }
 
 export async function ensureDebugBrowser(browser, { restart = false } = {}) {
@@ -217,9 +218,7 @@ export async function ensureDebugBrowser(browser, { restart = false } = {}) {
   }
   if (isProcessRunning(browser)) {
     if (!restart) {
-      const error = new Error(
-        `${browser.label} is running without remote debugging. Quit ${browser.label} and retry, or use --restart.`
-      );
+      const error = new Error(t('browserRunning', browser.label));
       error.code = 'BROWSER_NO_DEBUG';
       throw error;
     }
@@ -227,7 +226,7 @@ export async function ensureDebugBrowser(browser, { restart = false } = {}) {
   }
   const port = PORT_CANDIDATES.find((candidate) => !usedPorts.has(candidate));
   if (!port) {
-    throw new Error(`No free remote debugging port in ${PORT_CANDIDATES.join(', ')}.`);
+    throw new Error(t('noFreePort', PORT_CANDIDATES.join(', ')));
   }
   await launchBrowserWithDebug(browser, port);
   return `http://127.0.0.1:${port}`;
@@ -238,7 +237,7 @@ export async function connectBrowser(browser, options = {}) {
   const browserServer = await chromium.connectOverCDP(endpoint);
   const context = browserServer.contexts()[0];
   if (!context) {
-    throw new Error(`Cannot open a page in ${browser.label}.`);
+    throw new Error(t('cannotOpenPage', browser.label));
   }
   return { browserServer, context, endpoint };
 }
@@ -252,7 +251,7 @@ export async function readCookiesFromContext(context, label = 'browser') {
   const cookies = await context.cookies();
   const relevant = cookies.filter(isWantedCookie);
   if (!relevant.some((cookie) => AUTH_COOKIES.has(cookie.name))) {
-    throw new Error(`No Google session in ${label}. Sign in at https://accounts.google.com first.`);
+    throw new Error(t('noGoogleSession', label));
   }
   return relevant;
 }
