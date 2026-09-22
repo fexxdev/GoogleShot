@@ -79,10 +79,11 @@ GoogleShot has no backend. It reads the page you ask for, builds the file locall
 ## Development
 
 ```sh
-npm test          # unit tests
-npm run build     # build the extension into extension/
-npm run shots     # regenerate the store screenshots
-npm run release   # bump the patch version, then build
+npm test            # unit tests
+npm run check:compose  # Docs compose check on a mock page (real Chrome)
+npm run build       # build the extension into extension/
+npm run shots       # regenerate the store screenshots
+npm run release     # bump the patch version, then build
 ```
 
 Layout:

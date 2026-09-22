@@ -33,12 +33,10 @@ export function docSliceFor(index) {
     if (bottom <= top) {
       return null;
     }
-    const canvas = element.querySelector('canvas.kix-canvas-tile-content');
     return {
       x: rect.x,
       width: rect.width,
       height: rect.height,
-      scale: canvas && rect.width > 0 ? canvas.width / rect.width : window.devicePixelRatio || 1,
       visibleTop: top - rect.top,
       visibleHeight: bottom - top,
       clipTop: top,

@@ -1,5 +1,6 @@
 import { sleep } from './util.js';
 import { cleanTitle } from '../shared/filename.js';
+import { jpegDimensions } from '../shared/jpeg.js';
 import { t } from './i18n.js';
 import {
   DOC_EDITOR_SELECTOR,
@@ -7,6 +8,7 @@ import {
   DOC_SCROLL_STEP,
   collectDocPages,
   docPageElementFor,
+  docComposeLayout,
   docScrollByValue,
   docScrollToPosition,
   docSliceFor,
@@ -54,13 +56,11 @@ async function setZoomTo100(page) {
   }
 }
 
-async function docCapturePage(page, number, quality) {
-  const editor = page.locator(DOC_EDITOR_SELECTOR).first();
+export async function docCapturePage(page, number, quality) {
   const slices = [];
   let covered = 0;
   let pageHeight = null;
   let pageWidth = null;
-  let pageScale = 1;
   let guard = 0;
   while (guard < 20 && (pageHeight === null || covered < pageHeight - 2)) {
     guard += 1;
@@ -70,7 +70,6 @@ async function docCapturePage(page, number, quality) {
     }
     pageHeight = slice.height;
     pageWidth = slice.width;
-    pageScale = slice.scale;
     const sliceEnd = slice.visibleTop + slice.visibleHeight;
     if (sliceEnd <= covered + 2) {
       break;
@@ -83,10 +82,6 @@ async function docCapturePage(page, number, quality) {
     const image = await page.screenshot({
       type: 'jpeg',
       quality,
-      // CSS pixels: the slice bitmap then matches the page geometry 1:1 and
-      // the tile scale below applies uniformly. Without this the bitmap is in
-      // device pixels and the composed page is stretched.
-      scale: 'css',
       clip: {
         x: slice.x,
         y: slice.clipTop + skip,
@@ -94,8 +89,15 @@ async function docCapturePage(page, number, quality) {
         height: clipHeight,
       },
     });
+    const size = jpegDimensions(image);
+    if (!size) {
+      return null;
+    }
     slices.push({
       offset: Math.round(slice.visibleTop + skip),
+      clipWidth: Math.round(slice.width),
+      pixelWidth: size.width,
+      pixelHeight: size.height,
       image: image.toString('base64'),
     });
     covered = sliceEnd;
@@ -108,30 +110,25 @@ async function docCapturePage(page, number, quality) {
   if (slices.length === 0 || pageHeight === null || pageWidth === null) {
     return null;
   }
+  const layout = docComposeLayout(slices, Math.round(pageWidth), Math.round(pageHeight));
   const base64 = await page.evaluate(
-    async ({ parts, height, width, scale, quality: jpegQuality }) => {
+    async ({ parts, plan, quality: jpegQuality }) => {
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
+      canvas.width = plan.width;
+      canvas.height = plan.height;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const anchor = Math.min(...parts.map((part) => part.offset));
-      for (const part of parts) {
+      ctx.fillRect(0, 0, plan.width, plan.height);
+      for (let index = 0; index < parts.length; index += 1) {
         const image = new Image();
-        image.src = `data:image/jpeg;base64,${part.image}`;
+        image.src = `data:image/jpeg;base64,${parts[index].image}`;
         await image.decode();
-        ctx.drawImage(
-          image,
-          0,
-          Math.round((part.offset - anchor) * scale),
-          canvas.width,
-          Math.round(image.height * scale)
-        );
+        const placement = plan.placements[index];
+        ctx.drawImage(image, 0, placement.y, placement.width, placement.height);
       }
       return canvas.toDataURL('image/jpeg', jpegQuality / 100).split(',')[1];
     },
-    { parts: slices, height: Math.round(pageHeight), width: pageWidth, scale: pageScale, quality }
+    { parts: slices, plan: layout, quality }
   );
   return Buffer.from(base64, 'base64');
 }

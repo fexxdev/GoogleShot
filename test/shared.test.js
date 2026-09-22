@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cleanTitle, sanitizeFilename } from '../shared/filename.js';
 import { docComposeLayout } from '../shared/doc.js';
+import { jpegDimensions } from '../shared/jpeg.js';
 import {
   buildCsv,
   collectThread,
@@ -49,6 +50,30 @@ test('docComposeLayout falls back to 1 when the clip width is unknown', () => {
   const layout = docComposeLayout(slices, 816, 1056);
   assert.equal(layout.width, 816);
   assert.equal(layout.height, 1056);
+});
+
+test('jpegDimensions reads the SOF frame size', () => {
+  const buffer = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    Buffer.from([0xff, 0xe0, 0x00, 0x04, 0x00, 0x00]),
+    Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0x06, 0x90, 0x06, 0x60, 0x03, 0x01, 0x11, 0x00]),
+  ]);
+  assert.deepEqual(jpegDimensions(buffer), { width: 1632, height: 1680 });
+});
+
+test('jpegDimensions skips a DHT segment before the SOF', () => {
+  const buffer = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    Buffer.from([0xff, 0xc4, 0x00, 0x05, 0x01, 0x02, 0x03]),
+    Buffer.from([0xff, 0xc2, 0x00, 0x11, 0x08, 0x02, 0x58, 0x03, 0x30, 0x03, 0x01, 0x11, 0x00]),
+  ]);
+  assert.deepEqual(jpegDimensions(buffer), { width: 816, height: 600 });
+});
+
+test('jpegDimensions rejects input that is not a JPEG', () => {
+  assert.equal(jpegDimensions(Buffer.from('not an image')), null);
+  assert.equal(jpegDimensions(Buffer.alloc(0)), null);
+  assert.equal(jpegDimensions(Buffer.from([0xff, 0xd8])), null);
 });
 
 test('sanitizeFilename keeps the caller fallback', () => {
