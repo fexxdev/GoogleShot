@@ -49,18 +49,35 @@ Productivity
 
 English, Italian
 
-## Assets
+## Assets (in `store/upload/`, ready to upload)
 
-- `screenshots/popup-docs.png` — the popup on a document (1280×800 recommended; resize before upload)
-- `screenshots/popup-gmail.png` — the popup on a Gmail thread
-- `screenshots/popup-gmail-advanced.png` — the export options
-- `screenshots/options.png` — the options page with history
+- `popup-docs-1280x800.png` — the popup on a document
+- `popup-gmail-1280x800.png` — the popup on a Gmail thread
+- `popup-gmail-advanced-1280x800.png` — the export options
+- `options-1280x800.png` — the options page with history
+- `promo-small-440x280.png` — the small promo tile (required)
+
+Source screenshots live in `store/screenshots/`. Regenerate with `npm run promo` (tile) and the PIL padding step; originals are kept untouched.
 
 Icon: `extension/icons/icon-128.png`
 
-## Privacy practices (store form)
+## Privacy practices (store form — copy these answers)
 
-- Does the extension collect user data? **No.**
-- Does it use remote code? **No.**
-- Does it use the data for advertising? **No.**
+- Does the extension collect user data? **Yes: email message content and document content, strictly on-device.**
+  - Data types: "Email messages" (Gmail thread export) and "Website content" (Docs/Slides capture).
+  - Purpose: "App functionality" only.
+  - Transmitted off the device? **No.** Everything is processed locally and saved to the download folder.
+  - Sold, shared or used for advertising? **No.**
+  - Authentication data, financial data, health data? **No.**
+- Privacy policy URL (required): https://github.com/fexxdev/GoogleShot/blob/main/PRIVACY.md
+- Does it use remote code? **No** (all code is bundled; no CDN, no eval).
 - Single purpose: capture Google Docs and Slides to PDF, and download Gmail threads with the attachments.
+- Permission justifications (also in the detailed description):
+  - `debugger` — captures the page pixels for the PDF; Chrome shows its standard debugging banner while capturing.
+  - `downloads` — saves the PDF, images and archives.
+  - `scripting` + `activeTab` — runs the capture only in the tab you choose.
+  - `storage` — settings and the local export history (last 50, on-device).
+  - `contextMenus` — the right-click entries.
+  - Host access to `docs.google.com`, `mail.google.com`, `mail-attachment.googleusercontent.com` — reads only the page/thread you export.
+
+Note: `debugger` + Gmail host access usually trigger a manual review (days to a few weeks). Do not re-upload while waiting unless asked.

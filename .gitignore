@@ -16,3 +16,4 @@ extension/_locales/
 *.pdf
 *_pages/
 *_slides/
+dist/

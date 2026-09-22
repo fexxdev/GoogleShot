@@ -33,6 +33,10 @@ const elements = {
   historyDesc: document.getElementById('historyDesc'),
   historyContainer: document.getElementById('historyContainer'),
   clearHistory: document.getElementById('clearHistory'),
+  navSupport: document.getElementById('navSupport'),
+  supportTitle: document.getElementById('supportTitle'),
+  supportDesc: document.getElementById('supportDesc'),
+  supportButton: document.getElementById('supportButton'),
 };
 
 const FALLBACK = {
@@ -56,6 +60,10 @@ const FALLBACK = {
   popupGmailAttachments: 'Only the attachments (zip)',
   optionsClearHistory: 'Clear history',
   optionsSaveFailed: 'Could not save the settings.',
+  optionsNavSupport: 'Support',
+  optionsSupportTitle: 'Support GoogleShot',
+  optionsSupportDesc: 'GoogleShot is free, with no ads and no tracking. If it saves you time, you can offer me a coffee.',
+  optionsSupportButton: 'Buy me a coffee',
   colWhen: 'When',
   colTool: 'Tool',
   colTitle: 'Title',
@@ -122,6 +130,10 @@ function applyStrings() {
   elements.historyTitle.textContent = strings.optionsHistoryTitle;
   elements.historyDesc.textContent = strings.optionsHistoryDesc;
   elements.clearHistory.textContent = strings.optionsClearHistory;
+  elements.navSupport.textContent = strings.optionsNavSupport;
+  elements.supportTitle.textContent = strings.optionsSupportTitle;
+  elements.supportDesc.textContent = strings.optionsSupportDesc;
+  elements.supportButton.textContent = strings.optionsSupportButton;
 }
 
 function formatDate(iso) {

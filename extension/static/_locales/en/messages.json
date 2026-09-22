@@ -405,6 +405,18 @@
   "toolGmail": {
     "message": "Gmail"
   },
+  "optionsNavSupport": {
+    "message": "Support"
+  },
+  "optionsSupportTitle": {
+    "message": "Support GoogleShot"
+  },
+  "optionsSupportDesc": {
+    "message": "GoogleShot is free, with no ads and no tracking. If it saves you time, you can offer me a coffee."
+  },
+  "optionsSupportButton": {
+    "message": "Buy me a coffee"
+  },
   "docsMenuCapture": {
     "message": "Capture this as PDF"
   },

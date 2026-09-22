@@ -222,6 +222,20 @@
         border: 1px solid var(--border);
         font-weight: 500;
       }
+      .coffee {
+        display: inline-block;
+        background: #ffdd00;
+        color: #000000;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        border-radius: 9px;
+        padding: 9px 18px;
+      }
+      .coffee:hover {
+        filter: brightness(1.05);
+      }
       .saved {
         color: #1e8e3e;
         font-size: 12px;
@@ -250,6 +264,7 @@
         <a href="#defaults" data-section="defaults"><span class="dot"></span><span id="navDefaults"></span></a>
         <a href="#gmail" data-section="gmail"><span class="dot"></span><span id="navGmail"></span></a>
         <a href="#history" data-section="history"><span class="dot"></span><span id="navHistory"></span></a>
+        <a href="#support" data-section="support"><span class="dot"></span><span id="navSupport"></span></a>
       </nav>
 
       <main>
@@ -322,6 +337,12 @@
           <p class="desc" id="historyDesc"></p>
           <div id="historyContainer"></div>
           <button class="secondary" id="clearHistory" style="margin-top: 12px"></button>
+        </section>
+
+        <section id="support">
+          <h2 id="supportTitle"></h2>
+          <p class="desc" id="supportDesc"></p>
+          <a class="coffee" id="supportButton" href="https://buymeacoffee.com/fexxdev" target="_blank" rel="noopener"></a>
         </section>
       </main>
     </div>
