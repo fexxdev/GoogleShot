@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,170 +7,276 @@
     <style>
       :root {
         color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #202124;
+        --muted: #5f6368;
+        --border: #dadce0;
+        --card: #f8fafd;
+        --accent: #1a73e8;
+        --accent-fg: #ffffff;
+        --warn-bg: #fef7e0;
+        --warn-border: #f9d849;
+        --warn-fg: #8a6d00;
+        --input-bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #202124;
+          --fg: #e8eaed;
+          --muted: #9aa0a6;
+          --border: #5f6368;
+          --card: #292a2d;
+          --accent: #8ab4f8;
+          --accent-fg: #202124;
+          --warn-bg: #3c2f0b;
+          --warn-border: #7a5900;
+          --warn-fg: #fdd663;
+          --input-bg: #202124;
+        }
+      }
+      * {
+        box-sizing: border-box;
       }
       body {
         margin: 0;
-        width: 300px;
-        font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: #f8fafd;
-        color: #202124;
-      }
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #202124;
-          color: #e8eaed;
-        }
-        .card {
-          background: #292a2d !important;
-          border-color: #3c4043 !important;
-        }
-        button.secondary {
-          background: transparent !important;
-          color: #8ab4f8 !important;
-          border-color: #5f6368 !important;
-        }
-        input,
-        select {
-          border-color: #5f6368 !important;
-          background: transparent;
-          color: inherit;
-        }
+        width: 320px;
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
       }
       .wrap {
-        padding: 14px;
+        padding: 16px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .logo {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        background: var(--accent);
+        display: grid;
+        place-items: center;
+        color: var(--accent-fg);
+        font-size: 11px;
+        font-weight: 700;
       }
       h1 {
         font-size: 15px;
-        margin: 0 0 4px;
+        font-weight: 600;
+        margin: 0;
       }
       .hint {
-        color: #5f6368;
+        color: var(--muted);
         font-size: 12px;
-        margin-bottom: 10px;
+        margin: 0 0 14px;
       }
-      .card {
-        background: #fff;
-        border: 1px solid #dadce0;
+      .notice {
+        display: none;
+        align-items: flex-start;
+        gap: 8px;
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        color: var(--warn-fg);
         border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 10px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+      .notice.visible {
+        display: flex;
+      }
+      .notice svg {
+        flex: 0 0 auto;
+        margin-top: 1px;
       }
       .status {
-        font-weight: 500;
-        min-height: 18px;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 9px 12px;
+        margin-bottom: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .status.visible {
+        display: flex;
+      }
+      .spinner {
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        flex: 0 0 auto;
+        display: none;
+      }
+      .status.running .spinner {
+        display: block;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
       button {
         width: 100%;
         border: 0;
-        border-radius: 8px;
-        padding: 10px 12px;
+        border-radius: 10px;
+        padding: 11px 14px;
         font: inherit;
-        font-weight: 500;
+        font-weight: 600;
         cursor: pointer;
-        background: #1a73e8;
-        color: #fff;
+        background: var(--accent);
+        color: var(--accent-fg);
+      }
+      button:hover:not(:disabled) {
+        filter: brightness(1.06);
       }
       button:disabled {
-        opacity: 0.6;
+        opacity: 0.55;
         cursor: default;
       }
       button.secondary {
-        background: #fff;
-        color: #1a73e8;
-        border: 1px solid #dadce0;
         margin-top: 8px;
-      }
-      label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        color: inherit;
-      }
-      select,
-      input[type='text'] {
-        font: inherit;
-        font-size: 12px;
-        padding: 2px 4px;
-        border-radius: 6px;
-        border: 1px solid #dadce0;
         background: transparent;
-        color: inherit;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        font-weight: 500;
       }
       details {
-        margin-top: 4px;
+        margin-top: 14px;
+        border-top: 1px solid var(--border);
+        padding-top: 10px;
       }
       summary {
         cursor: pointer;
         font-size: 12px;
-        color: #1a73e8;
-        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--accent);
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::before {
+        content: '';
+        border: solid currentColor;
+        border-width: 0 1.6px 1.6px 0;
+        padding: 2.4px;
+        transform: rotate(-45deg);
+        transition: transform 0.15s ease;
+      }
+      details[open] summary::before {
+        transform: rotate(45deg);
+      }
+      .fields {
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
       }
       .field {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .field label {
+        color: var(--muted);
+      }
+      input[type='text'],
+      select {
+        width: 100%;
+        font: inherit;
+        font-size: 12px;
+        padding: 6px 8px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--fg);
+      }
+      input[type='text']:focus,
+      select:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+      }
+      .check {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 8px;
         font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
       }
-      .field > span {
-        flex: 0 0 92px;
-      }
-      .field > input,
-      .field > select {
-        flex: 1 1 auto;
-        min-width: 0;
-      }
-      .unsupported {
-        display: none;
-        background: #fef7e0;
-        border: 1px solid #f9d849;
-        color: #7a5900;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 10px;
-        font-size: 12px;
-      }
-      @media (prefers-color-scheme: dark) {
-        .unsupported {
-          background: #3f3212;
-          border-color: #7a5900;
-          color: #fdd663;
-        }
+      input[type='checkbox'] {
+        accent-color: var(--accent);
+        margin: 0;
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <h1>GoogleShot</h1>
-      <div class="hint" data-i18n="popupCaptureHint"></div>
-      <div class="unsupported" id="unsupported" data-i18n="popupUnsupported"></div>
-      <div class="card">
-        <div class="status" id="status"></div>
+      <header>
+        <div class="logo">GS</div>
+        <h1>GoogleShot</h1>
+      </header>
+      <p class="hint" id="hint"></p>
+
+      <div class="notice" id="notice">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 3 2 20h20L12 3Zm0 5.5v5m0 3v.5"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span id="noticeText"></span>
       </div>
-      <button id="capture" data-i18n="popupCapture"></button>
-      <button class="secondary" id="open" data-i18n="popupOpenDocs"></button>
+
+      <div class="status" id="status">
+        <div class="spinner"></div>
+        <span id="statusText"></span>
+      </div>
+
+      <button id="capture"></button>
+      <button class="secondary" id="open"></button>
+
       <details id="advanced">
-        <summary data-i18n="popupAdvanced"></summary>
-        <div class="card">
+        <summary id="advancedLabel"></summary>
+        <div class="fields">
           <div class="field">
-            <span data-i18n="popupRange"></span>
-            <input type="text" id="range" />
+            <label for="range" id="rangeLabel"></label>
+            <input type="text" id="range" autocomplete="off" spellcheck="false" />
           </div>
           <div class="field">
-            <span data-i18n="popupSpeed"></span>
+            <label for="speed" id="speedLabel"></label>
             <select id="speed">
-              <option value="fast" data-i18n="popupSpeedFast"></option>
-              <option value="normal" data-i18n="popupSpeedNormal"></option>
-              <option value="safe" data-i18n="popupSpeedSafe"></option>
+              <option value="fast" id="speedFast"></option>
+              <option value="normal" id="speedNormal"></option>
+              <option value="safe" id="speedSafe"></option>
             </select>
           </div>
           <div class="field">
-            <span data-i18n="popupFilename"></span>
-            <input type="text" id="filename" />
+            <label for="filename" id="filenameLabel"></label>
+            <input type="text" id="filename" autocomplete="off" spellcheck="false" />
           </div>
           <div class="field">
-            <span data-i18n="popupQuality"></span>
+            <label for="quality" id="qualityLabel"></label>
             <select id="quality">
               <option value="60">60</option>
               <option value="70">70</option>
@@ -179,7 +285,7 @@
               <option value="95">95</option>
             </select>
           </div>
-          <label><input type="checkbox" id="images" /> <span data-i18n="popupSaveImages"></span></label>
+          <label class="check"><input type="checkbox" id="images" /> <span id="imagesLabel"></span></label>
         </div>
       </details>
     </div>

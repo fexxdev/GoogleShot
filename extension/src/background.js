@@ -30,6 +30,7 @@ function buildStrings() {
     done: t('advDone'),
     popupCapture: t('popupCapture'),
     popupCaptureHint: t('popupCaptureHint'),
+    statusReady: t('statusReady'),
     popupOpenDocs: t('popupOpenDocs'),
     popupSaveImages: t('popupSaveImages'),
     popupQuality: t('popupQuality'),
