@@ -150,6 +150,16 @@ async function fetchTextInPage(tabId, url) {
   return entry.text;
 }
 
+async function fetchBytesInExtension(url) {
+  const response = await fetch(url, { credentials: 'include' });
+  log('gmail:attachment-fetch', { url: url.slice(0, 120), status: response.status, ok: response.ok });
+  if (!response.ok) {
+    throw new Error(`Attachment download failed (${response.status}).`);
+  }
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
 async function gmailAuth(tabId) {
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['gmail-content.js'] });
@@ -178,12 +188,12 @@ async function exportGmailThread(tabId) {
     throw new Error(strings.gmailNotThread);
   }
 
-  const messageIds = await chrome.tabs
-    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'message-ids' })
+  const messages = await chrome.tabs
+    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
     .then((response) => (response && response.ok ? response.result : null))
     .catch(() => null);
-  log('gmail:message-ids', { count: messageIds ? messageIds.length : 0, ids: messageIds });
-  if (!messageIds || messageIds.length === 0) {
+  log('gmail:messages', { messages });
+  if (!messages || messages.length === 0) {
     throw new Error(strings.gmailNotThread);
   }
 
@@ -191,8 +201,9 @@ async function exportGmailThread(tabId) {
   const blocks = await collectThread({
     ik,
     authuser,
-    messageIds,
+    messages,
     fetchText: (url) => fetchTextInPage(tabId, url),
+    fetchBytes: (url) => fetchBytesInExtension(url),
     onProgress: (done, total) => {
       log('gmail:progress', { done, total });
       setState({ message: strings.gmailFetching(done, total), percent: 5 + (done / total) * 80 });

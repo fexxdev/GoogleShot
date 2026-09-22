@@ -11,10 +11,10 @@
       sendResponse({ ok: true, result });
       return true;
     }
-    if (message.method === 'message-ids') {
-      const ids = messageIds();
-      console.log('[GS] gmail-content:message-ids', ids);
-      sendResponse({ ok: true, result: ids });
+    if (message.method === 'messages') {
+      const result = messages();
+      console.log('[GS] gmail-content:messages', result);
+      sendResponse({ ok: true, result });
       return true;
     }
     return undefined;
@@ -73,24 +73,53 @@
     return null;
   }
 
-  function messageIds() {
-    const ids = [];
-    const seen = new Set();
-    const collect = (text) => {
-      for (const match of String(text || '').matchAll(/msg-f:(\d+)/g)) {
-        if (!seen.has(match[1])) {
-          seen.add(match[1]);
-          ids.push(match[1]);
-        }
+  function messages() {
+    const byId = new Map();
+    const addAttachment = (url) => {
+      let parsed;
+      try {
+        parsed = new URL(url, location.origin);
+      } catch {
+        return;
+      }
+      const permmsgid = parsed.searchParams.get('permmsgid') || '';
+      const attid = parsed.searchParams.get('attid') || '';
+      const id = permmsgid.replace(/^msg-f:/, '');
+      if (!id || !attid || !parsed.searchParams.get('view')?.startsWith('att')) {
+        return;
+      }
+      if (!byId.has(id)) {
+        byId.set(id, { id, attachments: [] });
+      }
+      const entry = byId.get(id);
+      if (!entry.attachments.some((item) => item.attid === attid)) {
+        entry.attachments.push({ attid, url: parsed.href });
       }
     };
-    for (const element of document.querySelectorAll('[data-legacy-message-id], [data-message-id], a[href*="permmsgid"], [data-tooltip*="msg-f"]')) {
-      collect(element.getAttribute('data-legacy-message-id'));
-      collect(element.getAttribute('data-message-id'));
-      collect(element.getAttribute('href'));
-      collect(element.getAttribute('data-tooltip'));
+
+    for (const element of document.querySelectorAll('[data-legacy-message-id]')) {
+      const id = element.getAttribute('data-legacy-message-id');
+      if (id && /^[0-9a-f]+$/.test(id) && !byId.has(id)) {
+        byId.set(id, { id, attachments: [] });
+      }
     }
-    collect(document.documentElement.innerHTML);
-    return ids;
+    for (const anchor of document.querySelectorAll('a[href]')) {
+      addAttachment(anchor.getAttribute('href'));
+    }
+    for (const element of document.querySelectorAll('*')) {
+      for (const attribute of element.attributes || []) {
+        if (/view=att|attid=/.test(attribute.value)) {
+          addAttachment(attribute.value);
+        }
+      }
+    }
+
+    const items = Array.from(byId.values()).map((entry) => ({
+      ...entry,
+      attachments: entry.attachments
+        .sort((a, b) => a.attid.localeCompare(b.attid, undefined, { numeric: true }))
+        .map((attachment, index) => ({ ...attachment, index })),
+    }));
+    return items;
   }
 })();
