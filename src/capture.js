@@ -2,6 +2,8 @@ import { sleep } from './util.js';
 
 const CANVAS_SELECTOR = '#canvas';
 const FILMSTRIP_SELECTOR = '.punch-filmstrip-scroll';
+const DOC_EDITOR_SELECTOR = '.kix-appview-editor';
+const DOC_PAGE_SELECTOR = '.kix-page-paginated';
 
 async function currentSlideId(page) {
   const match = page.url().match(/#slide=id\.([a-zA-Z0-9_-]+)/);
@@ -39,6 +41,86 @@ async function setZoomTo100(page) {
   if (target) {
     await page.mouse.click(target.x, target.y);
     await sleep(800);
+  }
+}
+
+async function scrollDocToPage(page, index) {
+  await page.evaluate(
+    ({ pageIndex, editorSelector, tilesSelector, pageSelector }) => {
+      const editor = document.querySelector(editorSelector);
+      const tiles = editor?.querySelector(tilesSelector);
+      const target = document.querySelectorAll(pageSelector)[pageIndex];
+      if (!editor || !tiles || !target) {
+        return;
+      }
+      let top = 0;
+      let node = target;
+      while (node && node !== tiles) {
+        top += node.offsetTop;
+        node = node.offsetParent;
+      }
+      editor.scrollTop = Math.max(0, top - tiles.offsetTop - 20);
+    },
+    {
+      pageIndex: index,
+      editorSelector: DOC_EDITOR_SELECTOR,
+      tilesSelector: '.kix-rotatingtilemanager',
+      pageSelector: DOC_PAGE_SELECTOR,
+    }
+  );
+}
+
+export async function captureDocument(
+  context,
+  documentId,
+  { onProgress = () => {}, quality = 90 } = {}
+) {
+  const page = await context.newPage();
+  let succeeded = false;
+  try {
+    await page.goto(`https://docs.google.com/document/d/${documentId}/edit`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+    if (page.url().includes('accounts.google.com')) {
+      throw new Error('Google login required in the selected browser.');
+    }
+    const title = (await page.title())
+      .replace(/\s*-\s*(Documenti Google|Google Docs)\s*$/i, '')
+      .trim();
+    await page.locator(DOC_PAGE_SELECTOR).first().waitFor({ state: 'visible', timeout: 60000 });
+    await page.evaluate(() => document.fonts.ready);
+
+    if ((await page.locator(DOC_EDITOR_SELECTOR).count()) === 0) {
+      throw new Error('Cannot find the document editor.');
+    }
+
+    const total = await page.locator(DOC_PAGE_SELECTOR).count();
+    if (total === 0) {
+      throw new Error('No pages found.');
+    }
+    onProgress(`Document: ${title || documentId}`);
+
+    const pages = [];
+    for (let index = 0; index < total; index += 1) {
+      await scrollDocToPage(page, index);
+      const canvas = page.locator(DOC_PAGE_SELECTOR).nth(index).locator('canvas').first();
+      await canvas.waitFor({ state: 'visible', timeout: 30000 });
+      await sleep(400);
+      pages.push(
+        await page.locator(DOC_PAGE_SELECTOR).nth(index).screenshot({ type: 'jpeg', quality })
+      );
+      onProgress(`Page ${pages.length} of ${total} captured`);
+    }
+    if (pages.length === 0) {
+      throw new Error('No pages found.');
+    }
+    succeeded = true;
+    return { title: title || documentId, items: pages };
+  } finally {
+    if (succeeded) {
+      await page.close();
+    }
   }
 }
 
@@ -110,7 +192,7 @@ export async function capturePresentation(
       throw new Error('No slides found.');
     }
     succeeded = true;
-    return { title: title || presentationId, slides };
+    return { title: title || presentationId, items: slides };
   } finally {
     if (succeeded) {
       await page.close();

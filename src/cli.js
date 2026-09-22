@@ -8,31 +8,31 @@ import {
   saveCookies,
   loadCookies,
 } from './session.js';
-import { capturePresentation } from './capture.js';
+import { captureDocument, capturePresentation } from './capture.js';
 import { buildPdf } from './pdf.js';
 import { detectBrowsers, resolveBrowser } from './browsers.js';
 import { readConfig, writeConfig } from './config.js';
 import { chooseBrowser, confirm } from './prompt.js';
-import { parsePresentationId, sanitizeFilename } from './util.js';
+import { isDocSource, parseDocId, parseSlidesId, sanitizeFilename } from './util.js';
 
-const HELP = `GoogleShot - screenshot every slide of a Google Slides deck, then build a PDF.
+const HELP = `GoogleShot - screenshot every slide of a Google Slides deck or every page of a Google Doc, then build a PDF.
 
 Usage:
-  googleshot capture <slides-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
+  googleshot capture <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
   googleshot login [--browser <name>] [--restart]
   googleshot browser [--browser <name>] [--restart]
-  googleshot <slides-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
+  googleshot <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
 
 Commands:
-  capture    Read the session from your browser, then capture every slide in a
-             headless browser. Your browser stays untouched.
+  capture    Read the session from your browser, then capture every slide or
+             page in a headless browser. Your browser stays untouched.
   login      Check that your browser has a Google session.
   browser    Open your browser with remote debugging and keep it open.
 
 Options:
-  -o, --output <file.pdf>   PDF path. Default: "<deck title>.pdf" in the current directory.
-      --images-dir <dir>    Slide image folder. Default: "<deck title>_slides" in the current directory.
-      --quality <1-100>     JPEG quality of the slide images. Default: 90.
+  -o, --output <file.pdf>   PDF path. Default: "<title>.pdf" in the current directory.
+      --images-dir <dir>    Image folder. Default: "<title>_slides" for Slides, "<title>_pages" for Docs.
+      --quality <1-100>     JPEG quality of the images. Default: 90.
       --browser <name>      brave, chrome, msedge or chromium. If omitted, the tool asks.
       --restart             Restart the browser automatically when it is already open.
   -h, --help                Show this help.
@@ -159,12 +159,22 @@ async function loginCommand(argv) {
   process.exit(1);
 }
 
+function resolveSource(input) {
+  if (isDocSource(input)) {
+    return { kind: 'doc', id: parseDocId(input) };
+  }
+  if (!input) {
+    throw new Error('Missing presentation or document URL or ID.');
+  }
+  if (input.includes('/presentation/d/') || /^[a-zA-Z0-9_-]{20,}$/.test(input)) {
+    return { kind: 'slides', id: parseSlidesId(input) };
+  }
+  throw new Error(`Cannot find a presentation or document in: ${input}`);
+}
+
 async function captureCommand(argv) {
   const options = parseOptions(argv);
-  if (!options.source) {
-    throw new Error('Missing presentation URL or ID.');
-  }
-  const presentationId = parsePresentationId(options.source);
+  const source = resolveSource(options.source);
   const quality = parseQuality(options.quality);
   const browser = await pickBrowser({ flag: options.browser });
 
@@ -185,7 +195,8 @@ async function captureCommand(argv) {
   const { browser: headless, context } = await launchHeadless(cookies);
   let result;
   try {
-    result = await capturePresentation(context, presentationId, {
+    const engine = source.kind === 'doc' ? captureDocument : capturePresentation;
+    result = await engine(context, source.id, {
       onProgress: (message) => console.log(message),
       quality,
     });
@@ -195,17 +206,20 @@ async function captureCommand(argv) {
 
   const baseName = sanitizeFilename(result.title);
   const pdfPath = path.resolve(options.output || `${baseName}.pdf`);
-  const imagesDir = path.resolve(options.imagesDir || `${baseName}_slides`);
+  const imagesDir = path.resolve(
+    options.imagesDir || `${baseName}_${source.kind === 'doc' ? 'pages' : 'slides'}`
+  );
+  const itemName = source.kind === 'doc' ? 'page' : 'slide';
 
   await fs.rm(imagesDir, { recursive: true, force: true });
   await fs.mkdir(imagesDir, { recursive: true });
-  for (let index = 0; index < result.slides.length; index += 1) {
-    const file = path.join(imagesDir, `slide-${String(index + 1).padStart(3, '0')}.jpg`);
-    await fs.writeFile(file, result.slides[index]);
+  for (let index = 0; index < result.items.length; index += 1) {
+    const file = path.join(imagesDir, `${itemName}-${String(index + 1).padStart(3, '0')}.jpg`);
+    await fs.writeFile(file, result.items[index]);
   }
-  await buildPdf(result.slides, pdfPath);
+  await buildPdf(result.items, pdfPath);
 
-  console.log(`\nDone. ${result.slides.length} slides.`);
+  console.log(`\nDone. ${result.items.length} ${itemName}s.`);
   console.log(`PDF: ${pdfPath}`);
   console.log(`Images: ${imagesDir}`);
   process.exit(0);
