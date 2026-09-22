@@ -102,7 +102,7 @@ Output for a document:
 <doc title>_pages/page-001.jpg
 ```
 
-After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.json`. Next captures work also when the browser is closed. The saved cookies expire when the Google session expires. Refresh them with a capture while the debug browser is open.
+GoogleShot reads the cookies straight from the debug browser, uses them in memory and never writes them to disk. Keep the debug browser open for every capture.
 
 ## Commands
 
@@ -158,4 +158,5 @@ The built extension files in `extension/*.js` and `extension/*.html` are generat
 
 ## Security
 
-`~/.googleshot/cookies.json` contains your Google session cookies. Keep this file private. GoogleShot writes it with mode 600.
+- The CLI keeps the cookies in memory only. It never writes a cookie file.
+- The extension never reads the cookies. It works inside the open tab with the session of the tab.

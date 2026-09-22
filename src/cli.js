@@ -5,8 +5,6 @@ import {
   hasGoogleSession,
   launchHeadless,
   readCookiesFromContext,
-  saveCookies,
-  loadCookies,
 } from './session.js';
 import { captureDocument, capturePresentation } from './capture.js';
 import { buildPdf } from './pdf.js';
@@ -203,25 +201,16 @@ async function captureCommand(argv) {
   const quality = parseQuality(options.quality);
   const browser = await pickBrowser({ flag: options.browser });
 
-  let cookies = null;
-  try {
-    const { context } = await connectWithRestart(browser, options);
-    cookies = await readCookiesFromContext(context, browser.label);
-    saveCookies(cookies);
-    console.log(t('sessionCookies', cookies.length, browser.label));
-  } catch (error) {
-    cookies = loadCookies();
-    if (!cookies) {
-      throw error;
-    }
-    console.log(t('sessionSaved', error.message.split('\n')[0]));
-  }
+  // cookies stay in memory only: read them from the live browser, then use them
+  const { context } = await connectWithRestart(browser, options);
+  const cookies = await readCookiesFromContext(context, browser.label);
+  console.log(t('sessionCookies', cookies.length, browser.label));
 
-  const { browser: headless, context } = await launchHeadless(cookies);
+  const { browser: headless, context: headlessContext } = await launchHeadless(cookies);
   let result;
   try {
     const engine = source.kind === 'doc' ? captureDocument : capturePresentation;
-    result = await engine(context, source.id, {
+    result = await engine(headlessContext, source.id, {
       onProgress: (message) => console.log(message),
       quality,
     });

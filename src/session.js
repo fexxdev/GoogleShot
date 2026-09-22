@@ -8,7 +8,6 @@ import { t } from './i18n.js';
 import { sleep } from './util.js';
 
 const PORT_CANDIDATES = [9222, 9223, 9224, 9225];
-const COOKIES_PATH = path.join(PROFILE_ROOT, 'cookies.json');
 
 const AUTH_COOKIES = new Set(['SID', 'HSID', 'SSID', 'SAPISID', '__Secure-1PSID', '__Secure-3PSID']);
 
@@ -254,20 +253,6 @@ export async function readCookiesFromContext(context, label = 'browser') {
     throw new Error(t('noGoogleSession', label));
   }
   return relevant;
-}
-
-export function saveCookies(cookies) {
-  fs.mkdirSync(PROFILE_ROOT, { recursive: true });
-  fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2), { mode: 0o600 });
-}
-
-export function loadCookies() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf8'));
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function launchHeadless(
