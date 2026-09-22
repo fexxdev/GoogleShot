@@ -6,7 +6,9 @@
       return undefined;
     }
     if (message.method === 'auth') {
-      sendResponse({ ok: true, result: authInfo() });
+      const result = authInfo();
+      console.log('[GS] gmail-content:auth', result);
+      sendResponse({ ok: true, result });
       return true;
     }
     return undefined;
@@ -20,6 +22,12 @@
         /"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"\s*,\s*"\d+"/
       );
       account = match ? match[1] : null;
+    }
+    if (!account) {
+      const fallback = document.documentElement.innerHTML.match(
+        /[a-zA-Z0-9._%+-]+@(?:gmail|googlemail)\.[a-zA-Z]{2,}/
+      );
+      account = fallback ? fallback[0] : null;
     }
     return {
       threadId: threadIdFromUrl(),

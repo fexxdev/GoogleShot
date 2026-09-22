@@ -1,7 +1,10 @@
 import { captureTab } from './capture.js';
 import { collectThread, buildMbox } from './gmail.js';
+import { log, error, getLogs } from './log.js';
 
 const GMAIL_URL_PATTERNS = ['https://mail.google.com/*'];
+
+log('background:module-load', { version: chrome.runtime.getManifest().version });
 
 const state = {
   running: false,
@@ -72,9 +75,13 @@ function buildStrings() {
 }
 
 function broadcast() {
-  chrome.runtime
-    .sendMessage({ target: 'googleshot-popup', state: { ...state } })
-    .catch(() => {});
+  try {
+    chrome.runtime
+      .sendMessage({ target: 'googleshot-popup', state: { ...state } })
+      .catch(() => {});
+  } catch {
+    // no popup open
+  }
 }
 
 function setState(patch) {
@@ -102,16 +109,18 @@ function sanitizeFilename(name) {
 
 async function gmailAuth(tabId) {
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['gmail-content.js'],
-    });
-  } catch {
-    // the manifest content script may already be present
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['gmail-content.js'] });
+    log('gmail:content-injected', { tabId });
+  } catch (err) {
+    log('gmail:content-already-there', { tabId, reason: err && err.message });
   }
   const response = await chrome.tabs
     .sendMessage(tabId, { target: 'googleshot-gmail', method: 'auth' })
-    .catch(() => null);
+    .catch((err) => {
+      log('gmail:auth-message-failed', { tabId, reason: err && err.message });
+      return null;
+    });
+  log('gmail:auth-response', { tabId, ok: response && response.ok, result: response && response.result });
   if (!response || !response.ok || !response.result) {
     throw new Error(buildStrings().gmailNotThread);
   }
@@ -121,6 +130,7 @@ async function gmailAuth(tabId) {
 async function exportGmailThread(tabId) {
   const strings = buildStrings();
   const { threadId, account, ik } = await gmailAuth(tabId);
+  log('gmail:auth-parsed', { threadId, account, ik: ik ? `${ik.slice(0, 4)}...` : null });
   if (!threadId || !account) {
     throw new Error(strings.gmailNotThread);
   }
@@ -131,23 +141,27 @@ async function exportGmailThread(tabId) {
     account,
     threadId,
     onProgress: (done, total) => {
+      log('gmail:progress', { done, total });
       setState({ message: strings.gmailFetching(done, total), percent: 5 + (done / total) * 80 });
     },
   });
+  log('gmail:collected', { messages: entries.length, attachments: entries.reduce((sum, e) => sum + e.attachments.length, 0) });
   if (!entries.length) {
     throw new Error(strings.gmailNotThread);
   }
 
   setState({ message: strings.gmailBuilding, percent: 90 });
   const mbox = buildMbox(entries);
-  const subject = (entries[0].message.payload?.headers || []).find(
+  const subjectHeader = (entries[0].message.payload?.headers || []).find(
     (header) => String(header.name).toLowerCase() === 'subject'
   );
-  const title = subject ? subject.value : 'gmail-thread';
+  const title = subjectHeader ? subjectHeader.value : 'gmail-thread';
   const safeTitle = sanitizeFilename(title);
+  log('gmail:mbox-built', { bytes: mbox.length, filename: `${safeTitle}.mbox` });
   const blob = new Blob([mbox], { type: 'application/mbox' });
   const url = await blobToDataUrl(blob);
   await chrome.downloads.download({ url, filename: `${safeTitle}.mbox` });
+  log('gmail:download-started', { filename: `${safeTitle}.mbox` });
   setState({ message: strings.gmailDone(entries.length), percent: 100 });
   return { ok: true, count: entries.length, title: safeTitle };
 }
@@ -163,8 +177,9 @@ async function runGmail(tabId) {
   setState({ message: t('statusStarting'), percent: 0 });
   try {
     return await exportGmailThread(tabId);
-  } catch (error) {
-    const message = error.message || String(error);
+  } catch (err) {
+    error('gmail:failed', err);
+    const message = err.message || String(err);
     setState({ message: t('statusFailed'), percent: 0, error: message });
     return { ok: false, error: message };
   } finally {
@@ -191,8 +206,9 @@ async function runCapture(tabId) {
     });
     setState({ message: t('statusDone', result.count, result.itemName), percent: 100 });
     return { ok: true, ...result };
-  } catch (error) {
-    const message = error.message || String(error);
+  } catch (err) {
+    error('capture:failed', err);
+    const message = err.message || String(err);
     setState({ message: t('statusFailed'), percent: 0, error: message });
     return { ok: false, error: message };
   } finally {
@@ -203,19 +219,37 @@ async function runCapture(tabId) {
 
 function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'googleshot-gmail-thread',
-      title: t('gmailMenuExport'),
-      contexts: ['page', 'selection', 'link'],
-      documentUrlPatterns: GMAIL_URL_PATTERNS,
-    });
+    const lastError = chrome.runtime.lastError;
+    if (lastError) {
+      error('menu:remove-all', lastError);
+    }
+    chrome.contextMenus.create(
+      {
+        id: 'googleshot-gmail-thread',
+        title: t('gmailMenuExport'),
+        contexts: ['page', 'selection', 'link'],
+        documentUrlPatterns: GMAIL_URL_PATTERNS,
+      },
+      () => {
+        const createError = chrome.runtime.lastError;
+        log('menu:created', { error: createError ? createError.message : null, title: t('gmailMenuExport') });
+      }
+    );
   });
 }
 
-chrome.runtime.onInstalled.addListener(setupContextMenus);
-chrome.runtime.onStartup.addListener(setupContextMenus);
+chrome.runtime.onInstalled.addListener((details) => {
+  log('background:installed', { reason: details && details.reason });
+  setupContextMenus();
+});
+chrome.runtime.onStartup.addListener(() => {
+  log('background:startup');
+  setupContextMenus();
+});
+setupContextMenus();
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  log('menu:clicked', { menuItemId: info.menuItemId, tabId: tab && tab.id, url: tab && tab.url });
   if (info.menuItemId !== 'googleshot-gmail-thread' || !tab || !tab.id) {
     return;
   }
@@ -226,12 +260,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.target !== 'googleshot') {
     return undefined;
   }
+  log('message', { method: message.method, tabId: message.tabId });
   if (message.method === 'capture') {
-    runCapture(message.tabId).then(sendResponse);
+    runCapture(message.tabId).then(sendResponse).catch((err) => {
+      error('capture:dispatch', err);
+      sendResponse({ ok: false, error: err.message || String(err) });
+    });
     return true;
   }
   if (message.method === 'gmail-export') {
-    runGmail(message.tabId).then(sendResponse);
+    runGmail(message.tabId).then(sendResponse).catch((err) => {
+      error('gmail:dispatch', err);
+      sendResponse({ ok: false, error: err.message || String(err) });
+    });
     return true;
   }
   if (message.method === 'status') {
@@ -239,7 +280,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message.method === 'strings') {
-    sendResponse({ ok: true, strings: buildStrings(), status: t('statusReady') });
+    try {
+      sendResponse({ ok: true, strings: buildStrings(), status: t('statusReady') });
+    } catch (err) {
+      error('strings:failed', err);
+      sendResponse({ ok: false, error: err.message || String(err) });
+    }
+    return true;
+  }
+  if (message.method === 'logs') {
+    sendResponse({ ok: true, logs: getLogs() });
     return true;
   }
   return undefined;

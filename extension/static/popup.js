@@ -6,6 +6,7 @@ const elements = {
   statusText: document.getElementById('statusText'),
   capture: document.getElementById('capture'),
   gmailExport: document.getElementById('gmailExport'),
+  copyLogs: document.getElementById('copyLogs'),
   open: document.getElementById('open'),
   advanced: document.getElementById('advancedLabel'),
   range: document.getElementById('range'),
@@ -52,6 +53,15 @@ const isGooglePage = (url) =>
 const isGmailPage = (url) => Boolean(url && /^https:\/\/mail\.google\.com\//.test(url));
 
 const forcedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
+
+function gsLog(step, data) {
+  console.log('[GS] popup:' + step, data === undefined ? '' : data);
+  try {
+    chrome.runtime.sendMessage({ target: 'googleshot', method: 'logs', popup: { step, data } });
+  } catch {
+    // ignore
+  }
+}
 
 async function activeTab() {
   if (forcedTabId) {
@@ -112,16 +122,19 @@ async function loadStrings() {
 }
 
 async function refresh() {
+  gsLog('refresh-start', { forcedTabId });
   const status = await loadStrings();
   applyStrings();
 
   const tab = await activeTab();
   const url = tab ? tab.url : '';
+  gsLog('active-tab', { tabId: tab && tab.id, url });
   const allowed = isGooglePage(url);
   const gmail = isGmailPage(url);
   elements.capture.style.display = allowed ? '' : 'none';
   elements.gmailExport.style.display = gmail ? '' : 'none';
   elements.hint.textContent = gmail ? strings.popupGmailHint : strings.popupCaptureHint;
+  elements.copyLogs.style.display = '';
   elements.notice.classList.toggle('visible', !allowed && !gmail);
   elements.capture.disabled = !allowed;
   if (allowed || gmail) {
@@ -161,12 +174,20 @@ elements.capture.addEventListener('click', async () => {
 
 elements.gmailExport.addEventListener('click', async () => {
   const tab = await activeTab();
+  gsLog('gmail-export-click', { tabId: tab && tab.id });
   chrome.runtime.sendMessage({
     target: 'googleshot',
     method: 'gmail-export',
     tabId: tab ? tab.id : null,
   });
   window.close();
+});
+
+elements.copyLogs.addEventListener('click', async () => {
+  const response = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'logs' });
+  const text = JSON.stringify(response && response.logs ? response.logs : [], null, 1);
+  await navigator.clipboard.writeText(text);
+  elements.copyLogs.textContent = 'Copied';
 });
 
 elements.open.addEventListener('click', () => {
