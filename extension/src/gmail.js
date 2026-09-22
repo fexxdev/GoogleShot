@@ -29,9 +29,10 @@ export function extractOriginalMessage(html) {
 }
 
 export function originalMessageUrl({ authuser = 0, ik, permmsgid }) {
-  const parts = [`view=om`, `permmsgid=${encodeURIComponent(permmsgid)}`];
+  // Gmail wants the raw permmsgid (msg-f:123), the colon must stay literal
+  const parts = ['view=om', `permmsgid=${permmsgid}`];
   if (ik) {
-    parts.unshift(`ik=${encodeURIComponent(ik)}`);
+    parts.unshift(`ik=${ik}`);
   }
   return `${GMAIL_ORIGIN}/mail/u/${Number(authuser) || 0}/?${parts.join('&')}`;
 }

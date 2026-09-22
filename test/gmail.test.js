@@ -55,7 +55,7 @@ test('originalMessageUrl builds the view=om url', () => {
   const url = originalMessageUrl({ authuser: 2, ik: 'abc', permmsgid: 'msg-f:123' });
   assert.match(url, /\/mail\/u\/2\//);
   assert.match(url, /view=om/);
-  assert.match(url, /permmsgid=msg-f%3A123/);
+  assert.match(url, /permmsgid=msg-f:123/);
   assert.match(url, /ik=abc/);
 });
 
