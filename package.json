@@ -1,0 +1,26 @@
+{
+  "name": "googleshot",
+  "version": "0.1.0",
+  "description": "Capture every slide of a Google Slides presentation as PNG images and build a PDF.",
+  "type": "module",
+  "bin": {
+    "googleshot": "bin/googleshot.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/googleshot.js"
+  },
+  "keywords": [
+    "google-slides",
+    "screenshot",
+    "pdf",
+    "playwright"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "playwright": "1.58.0"
+  }
+}
