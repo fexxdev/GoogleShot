@@ -42,7 +42,11 @@ async function setZoomTo100(page) {
   }
 }
 
-export async function capturePresentation(context, presentationId, { onProgress = () => {} } = {}) {
+export async function capturePresentation(
+  context,
+  presentationId,
+  { onProgress = () => {}, quality = 90 } = {}
+) {
   const page = await context.newPage();
   let succeeded = false;
   try {
@@ -83,7 +87,7 @@ export async function capturePresentation(context, presentationId, { onProgress 
     while (guard < 2000) {
       guard += 1;
       await sleep(250);
-      slides.push(await page.locator(CANVAS_SELECTOR).first().screenshot({ type: 'png' }));
+      slides.push(await page.locator(CANVAS_SELECTOR).first().screenshot({ type: 'jpeg', quality }));
       onProgress(`Slide ${slides.length} captured`);
 
       const before = await currentSlideId(page);

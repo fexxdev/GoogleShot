@@ -237,7 +237,7 @@ function toPlaywrightCookie(cookie) {
   return result;
 }
 
-export async function launchHeadless(cookies) {
+export async function launchHeadless(cookies, { deviceScaleFactor = 1.5 } = {}) {
   const options = {
     headless: true,
     args: ['--disable-blink-features=AutomationControlled'],
@@ -251,7 +251,7 @@ export async function launchHeadless(cookies) {
   }
   const context = await browser.newContext({
     viewport: { width: 1600, height: 1000 },
-    deviceScaleFactor: 2,
+    deviceScaleFactor,
   });
   await context.addCookies(cookies.map(toPlaywrightCookie).filter(Boolean));
   return { browser, context };

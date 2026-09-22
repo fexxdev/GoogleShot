@@ -18,10 +18,10 @@ import { parsePresentationId, sanitizeFilename } from './util.js';
 const HELP = `GoogleShot - screenshot every slide of a Google Slides deck, then build a PDF.
 
 Usage:
-  googleshot capture <slides-url|id> [-o <file.pdf>] [--png-dir <dir>] [--browser <name>] [--restart]
+  googleshot capture <slides-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
   googleshot login [--browser <name>] [--restart]
   googleshot browser [--browser <name>] [--restart]
-  googleshot <slides-url|id> [-o <file.pdf>] [--png-dir <dir>] [--browser <name>] [--restart]
+  googleshot <slides-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
 
 Commands:
   capture    Read the session from your browser, then capture every slide in a
@@ -31,7 +31,8 @@ Commands:
 
 Options:
   -o, --output <file.pdf>   PDF path. Default: "<deck title>.pdf" in the current directory.
-      --png-dir <dir>       PNG folder. Default: "<deck title>_slides" in the current directory.
+      --images-dir <dir>    Slide image folder. Default: "<deck title>_slides" in the current directory.
+      --quality <1-100>     JPEG quality of the slide images. Default: 90.
       --browser <name>      brave, chrome, msedge or chromium. If omitted, the tool asks.
       --restart             Restart the browser automatically when it is already open.
   -h, --help                Show this help.
@@ -63,13 +64,22 @@ export async function runCli(argv) {
 }
 
 function parseOptions(argv) {
-  const options = { source: null, output: null, pngDir: null, browser: null, restart: false };
+  const options = {
+    source: null,
+    output: null,
+    imagesDir: null,
+    quality: null,
+    browser: null,
+    restart: false,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '-o' || arg === '--output') {
       options.output = argv[++index];
-    } else if (arg === '--png-dir') {
-      options.pngDir = argv[++index];
+    } else if (arg === '--images-dir') {
+      options.imagesDir = argv[++index];
+    } else if (arg === '--quality') {
+      options.quality = argv[++index];
     } else if (arg === '--browser') {
       options.browser = argv[++index];
     } else if (arg === '--restart') {
@@ -81,6 +91,17 @@ function parseOptions(argv) {
     }
   }
   return options;
+}
+
+function parseQuality(value) {
+  if (value === null || value === undefined) {
+    return 90;
+  }
+  const quality = Number(value);
+  if (!Number.isFinite(quality) || quality < 1 || quality > 100) {
+    throw new Error(`Invalid quality: ${value}. Use a number from 1 to 100.`);
+  }
+  return Math.round(quality);
 }
 
 async function pickBrowser({ flag = null, ask = true } = {}) {
@@ -144,6 +165,7 @@ async function captureCommand(argv) {
     throw new Error('Missing presentation URL or ID.');
   }
   const presentationId = parsePresentationId(options.source);
+  const quality = parseQuality(options.quality);
   const browser = await pickBrowser({ flag: options.browser });
 
   let cookies = null;
@@ -165,6 +187,7 @@ async function captureCommand(argv) {
   try {
     result = await capturePresentation(context, presentationId, {
       onProgress: (message) => console.log(message),
+      quality,
     });
   } finally {
     await headless.close();
@@ -172,18 +195,18 @@ async function captureCommand(argv) {
 
   const baseName = sanitizeFilename(result.title);
   const pdfPath = path.resolve(options.output || `${baseName}.pdf`);
-  const pngDir = path.resolve(options.pngDir || `${baseName}_slides`);
+  const imagesDir = path.resolve(options.imagesDir || `${baseName}_slides`);
 
-  await fs.rm(pngDir, { recursive: true, force: true });
-  await fs.mkdir(pngDir, { recursive: true });
+  await fs.rm(imagesDir, { recursive: true, force: true });
+  await fs.mkdir(imagesDir, { recursive: true });
   for (let index = 0; index < result.slides.length; index += 1) {
-    const file = path.join(pngDir, `slide-${String(index + 1).padStart(3, '0')}.png`);
+    const file = path.join(imagesDir, `slide-${String(index + 1).padStart(3, '0')}.jpg`);
     await fs.writeFile(file, result.slides[index]);
   }
   await buildPdf(result.slides, pdfPath);
 
   console.log(`\nDone. ${result.slides.length} slides.`);
   console.log(`PDF: ${pdfPath}`);
-  console.log(`PNG: ${pngDir}`);
+  console.log(`Images: ${imagesDir}`);
   process.exit(0);
 }

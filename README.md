@@ -1,6 +1,6 @@
 # GoogleShot
 
-Capture every slide of a Google Slides presentation as PNG images. Build one PDF from the images.
+Capture every slide of a Google Slides presentation as JPEG images. Build one compact PDF from the images.
 
 GoogleShot uses your browser session. It reads the Google cookies from your browser, then captures the slides in a headless Chrome. Your browser stays untouched.
 
@@ -38,7 +38,7 @@ GoogleShot reads the cookies over the Chrome DevTools Protocol, then captures ev
 
 ```
 <deck title>.pdf
-<deck title>_slides/slide-001.png
+<deck title>_slides/slide-001.jpg
 ```
 
 After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.json`. Next captures work also when the browser is closed. The saved cookies expire when the Google session expires. Refresh them with a capture while the debug browser is open.
@@ -52,7 +52,8 @@ After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.
 ## Options
 
 - `-o, --output <file.pdf>` — PDF path. Default: `<deck title>.pdf`.
-- `--png-dir <dir>` — PNG folder. Default: `<deck title>_slides`.
+- `--images-dir <dir>` — Slide image folder. Default: `<deck title>_slides`.
+- `--quality <1-100>` — JPEG quality of the slide images. Default: 90.
 - `--browser <name>` — `brave`, `chrome`, `msedge` or `chromium`. If omitted, the tool asks.
 - `--restart` — restart the browser automatically when it is already open.
 
@@ -60,7 +61,8 @@ After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.
 
 - The capture uses the editor view. Every slide shows its final state, including animations.
 - The PDF keeps the slide aspect ratio. The width is 960 pt.
-- Slide images are 1924x1084 pixels (2x scale).
+- Slide images are about 1443x813 pixels (1.5x scale). A 318 slide deck is about 55 MB.
+- Use a lower `--quality` for smaller files. Quality 80 is about 20% smaller.
 
 ## Security
 
