@@ -335,5 +335,14 @@
   },
   "popupFormatTxt": {
     "message": "as .txt (plain text)"
+  },
+  "optionsNavDefaults": {
+    "message": "Defaults"
+  },
+  "optionsNavGmail": {
+    "message": "Gmail"
+  },
+  "optionsNavHistory": {
+    "message": "History"
   }
 }

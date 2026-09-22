@@ -106,6 +106,9 @@ function buildStrings() {
     popupDebug: t('popupDebug'),
     popupCopyLogs: t('popupCopyLogs'),
     popupCopied: t('popupCopied'),
+    optionsNavDefaults: t('optionsNavDefaults'),
+    optionsNavGmail: t('optionsNavGmail'),
+    optionsNavHistory: t('optionsNavHistory'),
     statusReady: t('statusReady'),
     gmailMenuExport: t('gmailMenuExport'),
   };

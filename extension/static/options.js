@@ -1,4 +1,7 @@
 const elements = {
+  navDefaults: document.getElementById('navDefaults'),
+  navGmail: document.getElementById('navGmail'),
+  navHistory: document.getElementById('navHistory'),
   gmailTitle: document.getElementById('gmailTitle'),
   gmailDesc: document.getElementById('gmailDesc'),
   gmailFormat: document.getElementById('gmailFormat'),
@@ -42,6 +45,9 @@ const FALLBACK = {
   optionsHistoryTitle: 'Export history',
   optionsHistoryDesc: 'The last 50 captures and exports.',
   optionsHistoryEmpty: 'No exports yet.',
+  optionsNavDefaults: 'Defaults',
+  optionsNavGmail: 'Gmail',
+  optionsNavHistory: 'History',
   optionsGmailTitle: 'Gmail defaults',
   optionsGmailDesc: 'The popup and the right-click export use these Gmail values.',
   popupGmailFormat: 'Format',
@@ -91,6 +97,9 @@ async function loadStrings() {
 }
 
 function applyStrings() {
+  elements.navDefaults.textContent = strings.optionsNavDefaults;
+  elements.navGmail.textContent = strings.optionsNavGmail;
+  elements.navHistory.textContent = strings.optionsNavHistory;
   elements.defaultsTitle.textContent = strings.optionsDefaultsTitle;
   elements.defaultsDesc.textContent = strings.optionsDefaultsDesc;
   elements.defaultToolLabel.textContent = strings.optionsDefaultTool;
@@ -162,6 +171,46 @@ function renderHistory(history) {
   elements.historyContainer.appendChild(table);
 }
 
+function watchSections() {
+  const links = Array.from(document.querySelectorAll('.sidebar a[data-section]'));
+  const sections = links
+    .map((link) => document.getElementById(link.getAttribute('data-section')))
+    .filter(Boolean);
+  const setActive = (id) => {
+    for (const link of links) {
+      link.classList.toggle('active', link.getAttribute('data-section') === id);
+    }
+  };
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible.length) {
+          setActive(visible[0].target.id);
+        }
+      },
+      { rootMargin: '-20% 0px -60% 0px', threshold: [0.1, 0.5] }
+    );
+    for (const section of sections) {
+      observer.observe(section);
+    }
+  } else {
+    setActive(sections[0] ? sections[0].id : 'defaults');
+  }
+  for (const link of links) {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      const target = document.getElementById(link.getAttribute('data-section'));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActive(target.id);
+      }
+    });
+  }
+}
+
 let saveTimer = null;
 
 function flashSaved() {
@@ -207,6 +256,7 @@ async function refresh() {
   elements.gmailLimit.value = values.gmailLimit || '';
   elements.gmailAttachmentsOnly.checked = Boolean(values.gmailAttachmentsOnly);
   renderHistory(values.history);
+  watchSections();
   gsLog('refresh', { version, history: values.history.length });
 }
 
