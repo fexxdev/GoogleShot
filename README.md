@@ -22,13 +22,21 @@ npm run build
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the `extension/` folder.
 
-### Use
+### Use — Docs and Slides
 
 1. Open a Google Doc or a Google Slides deck.
 2. Click the GoogleShot icon and then **Capture this tab**.
 3. The popup closes, the page shows a small progress panel, and the PDF downloads with the document name.
 
 On any other page the popup shows "Doesn't work here" and the capture button stays disabled. The extension follows the browser language (English and Italian).
+
+### Use — Gmail threads
+
+1. Open a Gmail thread.
+2. Right-click anywhere in the page and choose **Download this thread as .mbox**, or click the GoogleShot icon and **Export this thread**.
+3. GoogleShot downloads an `.mbox` file with every message of the thread and the attachments.
+
+The export uses the Gmail session of the tab. It reads the thread and the attachments over HTTPS with your cookies, and it never sends anything to third parties. Files are saved by Chrome, like any other download.
 
 **Advanced options**:
 

@@ -175,5 +175,64 @@
   },
   "popupUnsupported": {
     "message": "Qui non funziono. Apri prima un Documento Google o una presentazione Google Slides."
+  },
+  "gmailMenuExport": {
+    "message": "Scarica questa conversazione come .mbox"
+  },
+  "popupGmailExport": {
+    "message": "Esporta questa conversazione"
+  },
+  "popupGmailHint": {
+    "message": "Scarica la conversazione Gmail aperta con gli allegati in un file .mbox."
+  },
+  "gmailReading": {
+    "message": "Lettura della conversazione..."
+  },
+  "gmailFetching": {
+    "message": "Messaggio $CURRENT$ di $TOTAL$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "gmailAttachments": {
+    "message": "Allegato $CURRENT$ di $TOTAL$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "gmailBuilding": {
+    "message": "Creazione del file .mbox..."
+  },
+  "gmailDone": {
+    "message": "Fatto. $COUNT$ messaggi con allegati.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "errGmailNotThread": {
+    "message": "Apri prima una conversazione Gmail."
+  },
+  "errGmailUnauthorized": {
+    "message": "Sessione Gmail non trovata. Apri Gmail in questo browser e riprova."
+  },
+  "errGmailFailed": {
+    "message": "Esportazione Gmail non riuscita: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
   }
 }

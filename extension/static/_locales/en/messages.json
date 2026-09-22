@@ -175,5 +175,64 @@
   },
   "popupUnsupported": {
     "message": "Doesn't work here. Open a Google Doc or a Google Slides deck first."
+  },
+  "gmailMenuExport": {
+    "message": "Download this thread as .mbox"
+  },
+  "popupGmailExport": {
+    "message": "Export this thread"
+  },
+  "popupGmailHint": {
+    "message": "Download the open Gmail thread with the attachments as an .mbox file."
+  },
+  "gmailReading": {
+    "message": "Reading the thread..."
+  },
+  "gmailFetching": {
+    "message": "Message $CURRENT$ of $TOTAL$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "gmailAttachments": {
+    "message": "Attachment $CURRENT$ of $TOTAL$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "gmailBuilding": {
+    "message": "Building the .mbox..."
+  },
+  "gmailDone": {
+    "message": "Done. $COUNT$ messages with attachments.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "errGmailNotThread": {
+    "message": "Open a Gmail thread first."
+  },
+  "errGmailUnauthorized": {
+    "message": "Gmail session not found. Open Gmail in this browser and retry."
+  },
+  "errGmailFailed": {
+    "message": "The Gmail export failed: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
   }
 }

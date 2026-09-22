@@ -5,6 +5,7 @@ const elements = {
   status: document.getElementById('status'),
   statusText: document.getElementById('statusText'),
   capture: document.getElementById('capture'),
+  gmailExport: document.getElementById('gmailExport'),
   open: document.getElementById('open'),
   advanced: document.getElementById('advancedLabel'),
   range: document.getElementById('range'),
@@ -23,6 +24,8 @@ const elements = {
 };
 
 const FALLBACK = {
+  popupGmailExport: 'Export this thread',
+  popupGmailHint: 'Download the open Gmail thread with the attachments as an .mbox file.',
   popupCapture: 'Capture this tab',
   popupCaptureHint: 'Capture every slide of a deck or every page of a document.',
   popupOpenDocs: 'Open docs.google.com',
@@ -46,6 +49,8 @@ let strings = { ...FALLBACK };
 const isGooglePage = (url) =>
   Boolean(url && /^https:\/\/docs\.google\.com\/(document|presentation)\/d\//.test(url));
 
+const isGmailPage = (url) => Boolean(url && /^https:\/\/mail\.google\.com\//.test(url));
+
 const forcedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
 
 async function activeTab() {
@@ -57,8 +62,8 @@ async function activeTab() {
 }
 
 function applyStrings() {
-  elements.hint.textContent = strings.popupCaptureHint;
   elements.capture.textContent = strings.popupCapture;
+  elements.gmailExport.textContent = strings.popupGmailExport;
   elements.open.textContent = strings.popupOpenDocs;
   elements.noticeText.textContent = strings.popupUnsupported;
   elements.advanced.textContent = strings.popupAdvanced;
@@ -111,10 +116,15 @@ async function refresh() {
   applyStrings();
 
   const tab = await activeTab();
-  const allowed = isGooglePage(tab ? tab.url : '');
-  elements.notice.classList.toggle('visible', !allowed);
+  const url = tab ? tab.url : '';
+  const allowed = isGooglePage(url);
+  const gmail = isGmailPage(url);
+  elements.capture.style.display = allowed ? '' : 'none';
+  elements.gmailExport.style.display = gmail ? '' : 'none';
+  elements.hint.textContent = gmail ? strings.popupGmailHint : strings.popupCaptureHint;
+  elements.notice.classList.toggle('visible', !allowed && !gmail);
   elements.capture.disabled = !allowed;
-  if (allowed) {
+  if (allowed || gmail) {
     setStatus(status, false);
   } else {
     setStatus('', false);
@@ -144,6 +154,16 @@ elements.capture.addEventListener('click', async () => {
   chrome.runtime.sendMessage({
     target: 'googleshot',
     method: 'capture',
+    tabId: tab ? tab.id : null,
+  });
+  window.close();
+});
+
+elements.gmailExport.addEventListener('click', async () => {
+  const tab = await activeTab();
+  chrome.runtime.sendMessage({
+    target: 'googleshot',
+    method: 'gmail-export',
     tabId: tab ? tab.id : null,
   });
   window.close();

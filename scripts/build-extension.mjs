@@ -28,6 +28,13 @@ await build({
 
 await build({
   ...common,
+  entryPoints: [path.join(root, 'extension/src/gmail-content.js')],
+  outfile: path.join(outdir, 'gmail-content.js'),
+  format: 'iife',
+});
+
+await build({
+  ...common,
   entryPoints: [path.join(root, 'extension/src/page.js')],
   outfile: path.join(outdir, 'page.js'),
   banner: { js: '// Generated from extension/src/page.js. Do not edit.' },

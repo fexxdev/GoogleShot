@@ -5,12 +5,26 @@
   "description": "__MSG_appDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "debugger", "downloads", "scripting", "storage"],
-  "host_permissions": ["https://docs.google.com/*"],
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "downloads",
+    "scripting",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://docs.google.com/*",
+    "https://mail.google.com/*"
+  ],
   "web_accessible_resources": [
     {
-      "resources": ["page.js"],
-      "matches": ["https://docs.google.com/*"]
+      "resources": [
+        "page.js"
+      ],
+      "matches": [
+        "https://docs.google.com/*"
+      ]
     }
   ],
   "background": {
@@ -29,8 +43,22 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://docs.google.com/document/*", "https://docs.google.com/presentation/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://docs.google.com/document/*",
+        "https://docs.google.com/presentation/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "gmail-content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

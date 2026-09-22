@@ -4,6 +4,7 @@ node_modules/
 
 extension/background.js
 extension/content.js
+extension/gmail-content.js
 extension/page.js
 extension/popup.html
 extension/popup.js
