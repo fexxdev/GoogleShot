@@ -4,42 +4,25 @@
 
 Capture Docs and Slides as PDF, and download Gmail threads with the attachments. Runs on your machine, no server, no analytics.
 
-## Detailed description
+## Detailed description (English)
 
-GoogleShot is a local toolbox for Google Workspace.
+GoogleShot is a local toolbox for Google Workspace. It saves what you already see in your browser.
 
-**Docs and Slides to PDF**
+Documents and Presentations: capture every page or every slide as one PDF, or pick a range like 1-5,8. You can also keep the JPEG images of every page.
 
-Capture every page of a Google Doc or every slide of a Google Slides deck as JPEG images and build one compact PDF. The capture renders the real editor, so the final state of every slide is kept.
+Gmail: download an open conversation as an archive with the attachments inside. Pick the format when you export, from a complete mailbox file to a plain text copy. You can also export only the attachments, the last N messages, or several selected conversations at once.
 
-- right-click capture, or the popup
-- page range (for example `1-5,8`)
-- capture speed for slow machines
-- custom file name, JPEG quality, optional images folder
+Everything happens on your machine: no server, no account, no tracking. The files go straight to your download folder. Available in English and Italian.
 
-**Gmail threads to a complete archive**
+## Detailed description (Italian)
 
-Right-click a thread and download it with the attachments inside. No Takeout, no temporary labels, no waiting.
+GoogleShot è una cassetta degli attrezzi locale per Google Workspace. Salva quello che stai già vedendo nel browser.
 
-- `.mbox` — the full RFC822 archive, attachments included, ready for any mail client
-- `.pdf` — a clean print view of the whole thread
-- `.txt`, `.json`, `.xml`, `.csv`, `.html` — for the tools you already use
-- attachments only, as a zip
-- last N messages
-- select several threads and export them together in one zip
+Documenti e Presentazioni: cattura ogni pagina o ogni slide in un unico PDF, oppure scegli un intervallo come 1-5,8. Puoi anche conservare le immagini JPEG di ogni pagina.
 
-**Privacy**
+Gmail: scarica una conversazione aperta come archivio con gli allegati dentro. Scegli il formato al momento dell'esportazione, dall'archivio completo alla copia in testo semplice. Puoi anche esportare solo gli allegati, gli ultimi N messaggi o più conversazioni selezionate insieme.
 
-GoogleShot has no backend. It talks only to Google, from your browser, on your behalf, and it saves the files to your download folder. Nothing leaves your machine. No analytics, no accounts, no tracking.
-
-**Permissions, explained**
-
-- `debugger` — needed to capture the page pixels for the PDF
-- `downloads` — to save the PDF, the images and the archives
-- host access to `docs.google.com`, `mail.google.com` and the attachment host — to read the page you ask for
-- `storage` — the settings and the local export history
-
-Full policy: https://fexx.dev/googleshot/privacy
+Tutto avviene sul tuo computer: nessun server, nessun account, nessun tracciamento. I file finiscono direttamente nella cartella dei download. Disponibile in italiano e inglese.
 
 ## Category
 
