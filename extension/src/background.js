@@ -129,8 +129,8 @@ async function gmailAuth(tabId) {
 
 async function exportGmailThread(tabId) {
   const strings = buildStrings();
-  const { threadId, account, ik } = await gmailAuth(tabId);
-  log('gmail:auth-parsed', { threadId, account, ik: ik ? `${ik.slice(0, 4)}...` : null });
+  const { threadId, account, ik, authuser } = await gmailAuth(tabId);
+  log('gmail:auth-parsed', { threadId, account, authuser, ik: ik ? `${ik.slice(0, 4)}...` : null });
   if (!threadId || !account) {
     throw new Error(strings.gmailNotThread);
   }
@@ -139,6 +139,7 @@ async function exportGmailThread(tabId) {
   const entries = await collectThread({
     ik,
     account,
+    authuser,
     threadId,
     onProgress: (done, total) => {
       log('gmail:progress', { done, total });

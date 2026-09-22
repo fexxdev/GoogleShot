@@ -33,7 +33,13 @@
       threadId: threadIdFromUrl(),
       ik: typeof globals[9] === 'string' ? globals[9] : null,
       account,
+      authuser: authuserFromUrl(),
     };
+  }
+
+  function authuserFromUrl() {
+    const match = location.pathname.match(/^\/mail\/u\/(\d+)\//);
+    return match ? Number(match[1]) : 0;
   }
 
   function threadIdFromUrl() {

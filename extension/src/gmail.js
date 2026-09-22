@@ -165,38 +165,38 @@ export function buildMbox(messages) {
   return messages.map((entry) => messageToMbox(entry.message, entry)).join('\n');
 }
 
-function gmailUrl(path, ik) {
-  const base = `${GMAIL_ORIGIN}/mail/u/0/gmail/v1/${path}`;
+function gmailUrl(authuser, path, ik) {
+  const base = `${GMAIL_ORIGIN}/mail/u/${Number(authuser) || 0}/gmail/v1/${path}`;
   return ik ? `${base}${base.includes('?') ? '&' : '?'}ik=${encodeURIComponent(ik)}` : base;
 }
 
-export async function fetchThread({ ik, account, threadId, fetchFn = fetch }) {
-  const url = gmailUrl(
-    `users/${encodeURIComponent(account)}/threads/${threadId}?format=full`,
-    ik
-  );
-  const response = await fetchFn(url, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error(`Gmail API error ${response.status}`);
+async function readJson(response, label) {
+  const text = await response.text();
+  if (!response.ok || text.trim().startsWith('<')) {
+    throw new Error(`${label} failed (${response.status}): ${text.slice(0, 120)}`);
   }
-  return response.json();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} returned invalid JSON: ${text.slice(0, 120)}`);
+  }
 }
 
-export async function fetchAttachment({ ik, account, messageId, attachmentId, fetchFn = fetch }) {
-  const url = gmailUrl(
-    `users/${encodeURIComponent(account)}/messages/${messageId}/attachments/${attachmentId}`,
-    ik
-  );
+export async function fetchThread({ ik, account, authuser = 0, threadId, fetchFn = fetch }) {
+  const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/threads/${threadId}?format=full`, ik);
   const response = await fetchFn(url, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error(`Gmail attachment error ${response.status}`);
-  }
-  const json = await response.json();
+  return readJson(response, 'Gmail API');
+}
+
+export async function fetchAttachment({ ik, account, authuser = 0, messageId, attachmentId, fetchFn = fetch }) {
+  const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/messages/${messageId}/attachments/${attachmentId}`, ik);
+  const response = await fetchFn(url, { credentials: 'include' });
+  const json = await readJson(response, 'Gmail attachment');
   return decodeBase64Url(json.data || '');
 }
 
-export async function collectThread({ ik, account, threadId, fetchFn = fetch, onProgress }) {
-  const thread = await fetchThread({ ik, account, threadId, fetchFn });
+export async function collectThread({ ik, account, authuser = 0, threadId, fetchFn = fetch, onProgress }) {
+  const thread = await fetchThread({ ik, account, authuser, threadId, fetchFn });
   const messages = thread.messages || [];
   const entries = [];
   for (let index = 0; index < messages.length; index += 1) {
@@ -208,6 +208,7 @@ export async function collectThread({ ik, account, threadId, fetchFn = fetch, on
       const bytes = await fetchAttachment({
         ik,
         account,
+        authuser,
         messageId: message.id,
         attachmentId: part.node.body.attachmentId,
         fetchFn,
