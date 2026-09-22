@@ -22,12 +22,13 @@ Usage:
   googleshot login [--browser <name>] [--restart]
   googleshot browser [--browser <name>] [--restart]
   googleshot <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
+  gshot c <url|id> ...   (gshot is a short alias of googleshot)
 
 Commands:
-  capture    Read the session from your browser, then capture every slide or
-             page in a headless browser. Your browser stays untouched.
-  login      Check that your browser has a Google session.
-  browser    Open your browser with remote debugging and keep it open.
+  capture, c    Read the session from your browser, then capture every slide or
+                page in a headless browser. Your browser stays untouched.
+  login, l      Check that your browser has a Google session.
+  browser, b    Open your browser with remote debugging and keep it open.
 
 Options:
   -o, --output <file.pdf>   PDF path. Default: "<title>.pdf" in the current directory.
@@ -38,21 +39,28 @@ Options:
   -h, --help                Show this help.
 `;
 
+const COMMANDS = {
+  c: 'capture',
+  l: 'login',
+  b: 'browser',
+};
+
 export async function runCli(argv) {
   const [command, ...rest] = argv;
   if (!command || command === '-h' || command === '--help' || command === 'help') {
     console.log(HELP);
     return;
   }
-  if (command === 'browser') {
+  const name = COMMANDS[command] || command;
+  if (name === 'browser') {
     await browserCommand(rest);
     return;
   }
-  if (command === 'login') {
+  if (name === 'login') {
     await loginCommand(rest);
     return;
   }
-  if (command === 'capture') {
+  if (name === 'capture') {
     await captureCommand(rest);
     return;
   }
@@ -139,7 +147,15 @@ async function connectWithRestart(browser, { restart = false } = {}) {
   }
 }
 
+function wantsHelp(argv) {
+  return argv.includes('-h') || argv.includes('--help');
+}
+
 async function browserCommand(argv) {
+  if (wantsHelp(argv)) {
+    console.log(HELP);
+    return;
+  }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { endpoint } = await connectWithRestart(browser, options);
@@ -148,6 +164,10 @@ async function browserCommand(argv) {
 }
 
 async function loginCommand(argv) {
+  if (wantsHelp(argv)) {
+    console.log(HELP);
+    return;
+  }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { context } = await connectWithRestart(browser, options);
@@ -173,6 +193,10 @@ function resolveSource(input) {
 }
 
 async function captureCommand(argv) {
+  if (wantsHelp(argv)) {
+    console.log(HELP);
+    return;
+  }
   const options = parseOptions(argv);
   const source = resolveSource(options.source);
   const quality = parseQuality(options.quality);

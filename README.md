@@ -64,6 +64,14 @@ After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.
 - `googleshot login` — check that your browser has a Google session.
 - `googleshot browser` — start your browser with remote debugging.
 
+`gshot` is a short alias of `googleshot`. These shorthands work: `c` for `capture`, `l` for `login`, `b` for `browser`.
+
+```sh
+gshot c "https://docs.google.com/document/d/<id>/edit"
+gshot l
+gshot b
+```
+
 ## Options
 
 - `-o, --output <file.pdf>` — PDF path. Default: `<title>.pdf`.
