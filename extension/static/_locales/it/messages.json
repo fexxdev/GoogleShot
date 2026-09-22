@@ -347,5 +347,17 @@
   },
   "docsMenuCapture": {
     "message": "Cattura in PDF"
+  },
+  "statusCancelled": {
+    "message": "Annullato."
+  },
+  "statusCancelling": {
+    "message": "Annullamento..."
+  },
+  "popupCancel": {
+    "message": "Annulla"
+  },
+  "toolbarCancel": {
+    "message": "Annulla"
   }
 }

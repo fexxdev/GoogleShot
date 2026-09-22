@@ -29,7 +29,7 @@ Then open `chrome://extensions` (or `brave://extensions`), enable **Developer mo
 2. Click the GoogleShot icon and **Capture this tab**, or right-click anywhere and pick **Capture this as PDF**.
 3. The PDF and the JPEG images land in your downloads.
 
-Options: page range (`1-5,8`), capture speed, file name, JPEG quality, save the images.
+Options: page range (`1-5,8`), capture speed, file name, JPEG quality, save the images. Every operation can be cancelled: from the popup, or from the **Cancel** button on the page panel.
 
 ### Use — Gmail
 

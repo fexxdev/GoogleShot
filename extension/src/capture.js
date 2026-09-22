@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { checkCancelled } from './cancel.js';
 import { filterSelection, parseRange } from '../../shared/range.js';
 
 const PAGE_WIDTH = 960;
@@ -123,6 +124,7 @@ async function captureDoc(target, tabId, settings) {
   }
   const images = [];
   for (let position = 0; position < pages.length; position += 1) {
+    checkCancelled();
     const page = pages[position];
     await pageCall(tabId, 'docScrollTo', { value: page.offset - 70 });
     await sleep(450);
@@ -133,6 +135,7 @@ async function captureDoc(target, tabId, settings) {
     let pageScale = 1;
     let guard = 0;
     for (;;) {
+      checkCancelled();
       guard += 1;
       if (guard > 20 || (pageHeight !== null && covered >= pageHeight - 2)) {
         break;
@@ -193,6 +196,7 @@ async function captureSlides(target, tabId, settings) {
   }
   const images = [];
   for (let position = 0; position < slides.length; position += 1) {
+    checkCancelled();
     const slide = slides[position];
     const arrived = await pageCall(tabId, 'slideGoTo', { id: slide.id });
     if (!arrived) {

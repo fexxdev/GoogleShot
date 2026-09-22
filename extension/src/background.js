@@ -1,4 +1,5 @@
 import { captureTab } from './capture.js';
+import { checkCancelled, requestCancel, resetCancel } from './cancel.js';
 import {
   collectThread,
   EXPORT_FORMATS,
@@ -55,6 +56,7 @@ function buildStrings() {
     capturingSlide: (current, total) => t('advCapturingSlide', current, total),
     buildingPdf: t('advBuildingPdf'),
     done: t('advDone'),
+    cancelled: t('statusCancelled'),
     unsupportedPage: t('errUnsupportedPage'),
     editorMissing: t('errEditorMissing'),
     slidesMissing: t('errSlidesMissing'),
@@ -114,6 +116,9 @@ function buildStrings() {
     optionsNavGmail: t('optionsNavGmail'),
     optionsNavHistory: t('optionsNavHistory'),
     statusReady: t('statusReady'),
+    statusCancelling: t('statusCancelling'),
+    statusCancelled: t('statusCancelled'),
+    popupCancel: t('popupCancel'),
     gmailMenuExport: t('gmailMenuExport'),
     docsMenuCapture: t('docsMenuCapture'),
   };
@@ -187,6 +192,7 @@ function sanitizeFilename(name) {
 }
 
 async function fetchTextInPage(tabId, url) {
+  checkCancelled(t('statusCancelled'));
   const result = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
@@ -230,6 +236,7 @@ async function fetchTextInPage(tabId, url) {
 }
 
 async function fetchBytesInExtension(url) {
+  checkCancelled(t('statusCancelled'));
   const response = await fetch(url, { credentials: 'include' });
   log('gmail:attachment-fetch', { url: url.slice(0, 120), status: response.status, ok: response.ok });
   if (!response.ok) {
@@ -368,6 +375,7 @@ async function exportGmailBatch(tabId, options = {}) {
   const files = {};
   let done = 0;
   for (const thread of selected) {
+    checkCancelled();
     setState({
       message: strings.gmailBatchProgress(done + 1, selected.length, thread.subject),
       percent: (done / selected.length) * 90,
@@ -447,6 +455,7 @@ async function runGmailBatch(tabId, options = {}) {
   if (state.running) {
     return { ok: false, error: t('statusAlreadyRunning') };
   }
+  resetCancel();
   state.running = true;
   state.action = 'gmail';
   state.tabId = tabId;
@@ -455,6 +464,11 @@ async function runGmailBatch(tabId, options = {}) {
   try {
     return await exportGmailBatch(tabId, options);
   } catch (err) {
+    if (err && err.cancelled) {
+      log('gmail:batch-cancelled');
+      setState({ message: t('statusCancelled'), percent: 0 });
+      return { ok: false, error: err.message, cancelled: true };
+    }
     error('gmail:batch-failed', err);
     const message = err.message || String(err);
     setState({ message: t('statusFailed'), percent: 0, error: message });
@@ -469,6 +483,7 @@ async function runGmail(tabId, format, options = {}) {
   if (state.running) {
     return { ok: false, error: t('statusAlreadyRunning') };
   }
+  resetCancel();
   state.running = true;
   state.action = 'gmail';
   state.tabId = tabId;
@@ -477,6 +492,11 @@ async function runGmail(tabId, format, options = {}) {
   try {
     return await exportGmailThread(tabId, format, options);
   } catch (err) {
+    if (err && err.cancelled) {
+      log('gmail:cancelled');
+      setState({ message: t('statusCancelled'), percent: 0 });
+      return { ok: false, error: err.message, cancelled: true };
+    }
     error('gmail:failed', err);
     const message = err.message || String(err);
     setState({ message: t('statusFailed'), percent: 0, error: message });
@@ -492,6 +512,7 @@ async function runCapture(tabId) {
     return { ok: false, error: t('statusAlreadyRunning') };
   }
   const strings = buildStrings();
+  resetCancel();
   state.running = true;
   state.action = 'capture';
   state.tabId = tabId;
@@ -512,6 +533,11 @@ async function runCapture(tabId) {
     });
     return { ok: true, ...result };
   } catch (err) {
+    if (err && err.cancelled) {
+      log('capture:cancelled');
+      setState({ message: t('statusCancelled'), percent: 0 });
+      return { ok: false, error: err.message, cancelled: true };
+    }
     error('capture:failed', err);
     const message = err.message || String(err);
     setState({ message: t('statusFailed'), percent: 0, error: message });
@@ -635,6 +661,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       error('gmail:dispatch', err);
       sendResponse({ ok: false, error: err.message || String(err) });
     });
+    return true;
+  }
+  if (message.method === 'cancel') {
+    if (state.running) {
+      requestCancel();
+      setState({ message: t('statusCancelling') });
+      log('cancel:requested');
+      sendResponse({ ok: true });
+    } else {
+      sendResponse({ ok: false, error: 'Nothing is running.' });
+    }
     return true;
   }
   if (message.method === 'status') {

@@ -24,6 +24,8 @@
       scanning: template('advScanningDocument'),
       pagesFound: template('advPagesFound'),
       slidesFound: template('advSlidesFound'),
+      cancel: chrome.i18n.getMessage('toolbarCancel') || 'Cancel',
+      cancelling: chrome.i18n.getMessage('statusCancelling') || 'Cancelling...',
     })};`;
     (document.head || document.documentElement).appendChild(host);
     host.remove();
@@ -34,6 +36,12 @@
       return;
     }
     const data = event.data;
+    if (data && data.__googleshot === 'cancel') {
+      chrome.runtime
+        .sendMessage({ target: 'googleshot', method: 'cancel' })
+        .catch(() => {});
+      return;
+    }
     if (!data || data.__googleshot !== 'result' || !pending.has(data.id)) {
       return;
     }

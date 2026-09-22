@@ -9,6 +9,8 @@ const elements = {
   docsDesc: document.getElementById('docsDesc'),
   docsStatus: document.getElementById('docsStatus'),
   docsStatusText: document.getElementById('docsStatusText'),
+  docsCancel: document.getElementById('docsCancel'),
+  gmailCancel: document.getElementById('gmailCancel'),
   capture: document.getElementById('capture'),
   gmailCard: document.getElementById('gmailCard'),
   gmailTitle: document.getElementById('gmailTitle'),
@@ -94,6 +96,7 @@ const FALLBACK = {
   popupGmailCopy: 'Copy as text',
   popupGmailBatch: 'Export selected threads',
   popupCopiedThread: 'Copied',
+  popupCancel: 'Cancel',
   statusFailed: 'Failed',
 };
 
@@ -189,6 +192,8 @@ function applyStrings() {
   elements.limitLabel.textContent = strings.popupGmailLimit;
   elements.attachmentsLabel.textContent = strings.popupGmailAttachments;
   elements.gmailCopy.textContent = strings.popupGmailCopy;
+  elements.docsCancel.textContent = strings.popupCancel;
+  elements.gmailCancel.textContent = strings.popupCancel;
   elements.gmailBatch.textContent = strings.popupGmailBatch;
   elements.limit.placeholder = strings.popupGmailLimitPlaceholder;
   elements.copyLogs.textContent = strings.popupCopyLogs;
@@ -254,7 +259,11 @@ function renderState(state, site) {
   const isGmail = state.action === 'gmail';
   const target = isGmail || site === 'gmail' ? elements.gmailStatus : elements.docsStatus;
   const text = isGmail || site === 'gmail' ? elements.gmailStatusText : elements.docsStatusText;
+  const cancelButton = isGmail || site === 'gmail' ? elements.gmailCancel : elements.docsCancel;
+  elements.docsCancel.hidden = true;
+  elements.gmailCancel.hidden = true;
   if (state.running) {
+    cancelButton.hidden = false;
     setStatus(target, text, state.message, true, false);
     return;
   }
@@ -429,6 +438,13 @@ elements.gmailBatch.addEventListener('click', async () => {
     );
   }
 });
+
+function requestCancel() {
+  chrome.runtime.sendMessage({ target: 'googleshot', method: 'cancel' }).catch(() => {});
+}
+
+elements.docsCancel.addEventListener('click', requestCancel);
+elements.gmailCancel.addEventListener('click', requestCancel);
 
 document.getElementById('openOptions').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();

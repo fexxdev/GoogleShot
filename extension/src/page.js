@@ -20,6 +20,8 @@ import {
     scanning: 'Scanning the document... $COUNT$ pages found',
     pagesFound: '$COUNT$ pages found',
     slidesFound: '$COUNT$ slides found',
+    cancel: 'Cancel',
+    cancelling: 'Cancelling...',
   };
   const format = (template, count) => template.replace('$COUNT$', String(count));
   const strings = {
@@ -63,6 +65,10 @@ import {
       '.status { opacity: .92; font-size: 12px; min-height: 30px; }',
       '.bar { height: 4px; background: rgba(255,255,255,.3); border-radius: 2px; margin-top: 8px; overflow: hidden; }',
       '.fill { height: 100%; width: 0%; background: #fff; transition: width .2s ease; }',
+      '.actions { display: flex; justify-content: flex-end; margin-top: 9px; pointer-events: auto; }',
+      '.cancel { font: inherit; font-size: 11px; font-weight: 500; color: #fff; background: rgba(255,255,255,.18);',
+      'border: 1px solid rgba(255,255,255,.45); border-radius: 7px; padding: 4px 10px; cursor: pointer; }',
+      '.cancel:hover { background: rgba(255,255,255,.3); }',
     ].join(' ');
     shadow.appendChild(style);
 
@@ -79,15 +85,28 @@ import {
     const fill = document.createElement('div');
     fill.className = 'fill';
     bar.appendChild(fill);
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const cancel = document.createElement('button');
+    cancel.className = 'cancel';
+    cancel.textContent = messages.cancel || 'Cancel';
+    cancel.addEventListener('click', () => {
+      window.postMessage({ __googleshot: 'cancel' }, '*');
+      cancel.disabled = true;
+      status.textContent = messages.cancelling || 'Cancelling...';
+    });
+    actions.appendChild(cancel);
     box.appendChild(title);
     box.appendChild(status);
     box.appendChild(bar);
+    box.appendChild(actions);
     shadow.appendChild(box);
 
     document.documentElement.appendChild(host);
     toolbar = {
       status,
       fill,
+      cancel,
       remove: () => {
         host.remove();
         toolbar = null;
