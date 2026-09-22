@@ -182,6 +182,10 @@ function wantsHelp(argv) {
   return argv.includes('-h') || argv.includes('--help');
 }
 
+// NOTE: never call browserServer.close() on the live browser below. Over CDP
+// that does not just drop the connection: it quits the user's browser, which
+// can lose the session state and force a new Google login. The process exit
+// at the end already cleans up the socket.
 async function browserCommand(argv) {
   if (wantsHelp(argv)) {
     console.log(HELP);
@@ -189,12 +193,8 @@ async function browserCommand(argv) {
   }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
-  const { browserServer, endpoint } = await connectWithRestart(browser, options);
-  try {
-    console.log(t('browserReady', browser.label, endpoint));
-  } finally {
-    await browserServer.close().catch(() => {});
-  }
+  const { endpoint } = await connectWithRestart(browser, options);
+  console.log(t('browserReady', browser.label, endpoint));
 }
 
 async function loginCommand(argv) {
@@ -204,17 +204,13 @@ async function loginCommand(argv) {
   }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
-  const { browserServer, context } = await connectWithRestart(browser, options);
-  try {
-    if (await hasGoogleSession(context)) {
-      console.log(t('loginFound', browser.label));
-      return 0;
-    }
-    console.log(t('loginMissing', browser.label));
-    return 1;
-  } finally {
-    await browserServer.close().catch(() => {});
+  const { context } = await connectWithRestart(browser, options);
+  if (await hasGoogleSession(context)) {
+    console.log(t('loginFound', browser.label));
+    return 0;
   }
+  console.log(t('loginMissing', browser.label));
+  return 1;
 }
 
 export function resolveSource(input, { doc = false, slides = false } = {}) {
@@ -254,13 +250,8 @@ async function captureCommand(argv) {
   const browser = await pickBrowser({ flag: options.browser });
 
   // cookies stay in memory only: read them from the live browser, then use them
-  const { browserServer, context } = await connectWithRestart(browser, options);
-  let cookies;
-  try {
-    cookies = await readCookiesFromContext(context, browser.label);
-  } finally {
-    await browserServer.close().catch(() => {});
-  }
+  const { context } = await connectWithRestart(browser, options);
+  const cookies = await readCookiesFromContext(context, browser.label);
   console.log(t('sessionCookies', cookies.length, browser.label));
 
   const { browser: headless, context: headlessContext } = await launchHeadless(cookies);
