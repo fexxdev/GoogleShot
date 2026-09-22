@@ -143,6 +143,22 @@ function escapeHtml(value) {
   return escapeXml(value);
 }
 
+// English fallbacks for the plain-text and PDF exports: the background passes
+// the localized labels in meta.labels.
+const TEXT_LABELS = {
+  from: 'From',
+  to: 'To',
+  cc: 'Cc',
+  date: 'Date',
+  subject: 'Subject',
+  attachment: 'attachment',
+  attachments: 'Attachments',
+};
+
+function textLabels(meta = {}) {
+  return { ...TEXT_LABELS, ...(meta.labels || {}) };
+}
+
 export function buildJson(entries, meta = {}) {
   return JSON.stringify(
     {
@@ -259,21 +275,22 @@ export function buildHtml(entries) {
   return parts.join('\n');
 }
 
-export function buildText(entries) {
+export function buildText(entries, meta = {}) {
+  const labels = textLabels(meta);
   return entries
     .map((entry) => {
       const lines = [
         '────────────────────────────────────────',
-        `Da: ${entry.from}`,
-        `A: ${entry.to}`,
-        ...(entry.cc ? [`Cc: ${entry.cc}`] : []),
-        `Data: ${entry.date}`,
-        `Oggetto: ${entry.subject}`,
+        `${labels.from}: ${entry.from}`,
+        `${labels.to}: ${entry.to}`,
+        ...(entry.cc ? [`${labels.cc}: ${entry.cc}`] : []),
+        `${labels.date}: ${entry.date}`,
+        `${labels.subject}: ${entry.subject}`,
         '────────────────────────────────────────',
         '',
         entry.body.trim(),
         '',
-        ...entry.attachments.map((attachment) => `[allegato] ${attachment.filename}`),
+        ...entry.attachments.map((attachment) => `[${labels.attachment}] ${attachment.filename}`),
       ];
       return lines.join('\n');
     })
@@ -331,7 +348,8 @@ function wrapText(text, font, size, maxWidth) {
   return lines;
 }
 
-export async function buildPdf(entries) {
+export async function buildPdf(entries, meta = {}) {
+  const labels = textLabels(meta);
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -380,7 +398,7 @@ export async function buildPdf(entries) {
     write(entry.body.trim(), 10.5, false);
     if (entry.attachments.length) {
       y -= 10;
-      write(`Allegati (${entry.attachments.length})`, 10.5, true);
+      write(`${labels.attachments} (${entry.attachments.length})`, 10.5, true);
       for (const attachment of entry.attachments) {
         write(`• ${attachment.filename} (${attachment.mimeType}, ${base64Size(attachment.base64)} bytes)`, 9.5, false, rgb(0.3, 0.31, 0.35));
       }
@@ -415,7 +433,7 @@ export function buildAttachmentsZip(entries) {
       files[name] = bytes;
     }
   }
-  return zipSync(files, { level: 0 });
+  return zipSync(files, { level: 6 });
 }
 
 export function buildThreadsZip(files) {
@@ -495,9 +513,13 @@ export function mimeParts(message) {
     }
     const contentType = headers.match(/Content-Type:\s*([^\s;]+)/i);
     const encoding = headers.match(/Content-Transfer-Encoding:\s*(\S+)/i);
+    // Gmail writes the decoded size in Content-Disposition: it lets us pair
+    // the fetched bytes with the right MIME part when the DOM order differs.
+    const declaredSize = headers.match(/\bsize=(\d+)/i);
     parts.push({
       filename,
       mimeType: contentType ? contentType[1] : 'application/octet-stream',
+      size: declaredSize ? Number(declaredSize[1]) : 0,
       base64: /base64/i.test(encoding ? encoding[1] : '')
         ? body.replace(/[^A-Za-z0-9+/=]/g, '')
         : bytesToBase64(new TextEncoder().encode(body)),
@@ -506,9 +528,50 @@ export function mimeParts(message) {
   return parts;
 }
 
-export async function collectThread({ ik, authuser = 0, messages, fetchText, fetchBytes, onProgress }) {
+// The MIME parts and the DOM attachments do not always share the same order
+// (inline images, nested messages). Trust the declared size first, then fall
+// back to the DOM order.
+export function matchAttachments(parts, fetched) {
+  const used = new Set();
+  const aligned = new Array(parts.length).fill(null);
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    let chosen = -1;
+    if (part && part.size) {
+      chosen = fetched.findIndex(
+        (item, position) => item && !used.has(position) && item.bytes === part.size
+      );
+    }
+    if (chosen === -1) {
+      chosen = fetched.findIndex((item, position) => item && !used.has(position));
+    }
+    if (chosen === -1) {
+      break;
+    }
+    used.add(chosen);
+    aligned[index] = fetched[chosen];
+  }
+  return {
+    aligned,
+    leftover: fetched.filter((item, position) => item && !used.has(position)).length,
+  };
+}
+
+export async function collectThread({
+  ik,
+  authuser = 0,
+  messages,
+  fetchText,
+  fetchBytes,
+  onProgress,
+  byteLimit = 0,
+  limitMessage = 'Too much data for one export.',
+}) {
   const entries = [];
-  for (let index = 0; index < messages.length; index += 1) {    const message = messages[index];
+  let leftoverAttachments = 0;
+  let missingAttachments = 0;
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
     const url = originalMessageUrl({ authuser, ik, permmsgid: message.id });
     const html = await fetchText(url);
     let original = null;
@@ -519,22 +582,43 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
     }
     if (original) {
       const attachments = message.attachments || [];
-      const attachmentBase64 = new Array(attachments.length);
+      const parts = mimeParts(original);
+      const fetched = new Array(attachments.length);
+      let totalBytes = 0;
       const BATCH = 4;
       for (let offset = 0; offset < attachments.length; offset += BATCH) {
         const batch = attachments.slice(offset, offset + BATCH);
         const results = await Promise.all(
           batch.map(async (attachment, position) => {
             const bytes = await fetchBytes(attachment.url);
-            return [offset + position, bytesToBase64(bytes)];
+            return [offset + position, bytes];
           })
         );
-        for (const [position, base64] of results) {
-          attachmentBase64[position] = base64;
+        for (const [position, bytes] of results) {
+          totalBytes += bytes.length;
+          if (byteLimit && totalBytes > byteLimit) {
+            throw new Error(limitMessage);
+          }
+          fetched[position] = {
+            base64: bytesToBase64(bytes),
+            bytes: bytes.length,
+            url: attachments[position].url,
+          };
         }
       }
-      const raw = mergeAttachments(original, attachmentBase64);
-      const partInfo = mimeParts(raw);
+      const { aligned, leftover } = matchAttachments(parts, fetched);
+      leftoverAttachments += leftover;
+      missingAttachments += parts.length - aligned.filter(Boolean).length;
+      const raw = mergeAttachments(original, aligned.map((item) => (item ? item.base64 : '')));
+      const matched = new Set(aligned.filter(Boolean));
+      const unmatched = fetched
+        .filter((item) => item && !matched.has(item))
+        .map((item, position) => ({
+          filename: `attachment-${position + 1}`,
+          mimeType: 'application/octet-stream',
+          base64: item.base64,
+          url: item.url,
+        }));
       entries.push({
         raw,
         subject: decodeMimeWord(messageHeader(raw, 'Subject')),
@@ -544,12 +628,23 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
         date: messageHeader(raw, 'Date'),
         messageId: messageHeader(raw, 'Message-ID'),
         body: extractBodyText(raw),
-        attachments: attachments.map((attachment, position) => ({
-          filename: partInfo[position] ? partInfo[position].filename : `attachment-${position + 1}`,
-          mimeType: partInfo[position] ? partInfo[position].mimeType : 'application/octet-stream',
-          base64: attachmentBase64[position] || '',
-          url: attachment.url,
-        })),
+        // Only the parts with real bytes: a declared attachment the page did
+        // not expose would otherwise become a 0-byte file.
+        attachments: [
+          ...parts.reduce((list, part, position) => {
+            const match = aligned[position];
+            if (match) {
+              list.push({
+                filename: part.filename,
+                mimeType: part.mimeType,
+                base64: match.base64,
+                url: match.url,
+              });
+            }
+            return list;
+          }, []),
+          ...unmatched,
+        ],
       });
     }
     if (onProgress) {
@@ -559,6 +654,8 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
   // Messages without an "original" block (drafts, some system types) are
   // skipped silently by the loop above: expose the count so callers can warn.
   entries.skipped = messages.length - entries.length;
+  entries.leftoverAttachments = leftoverAttachments;
+  entries.missingAttachments = missingAttachments;
   return entries;
 }
 

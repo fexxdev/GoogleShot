@@ -4,6 +4,8 @@
   const pending = new Map();
   let readyPromise = null;
 
+  publishStrings();
+
   function injectPageScript() {
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -17,18 +19,22 @@
     });
   }
 
-  function injectStrings() {
-    const template = (key) => (chrome.i18n.getMessage(key) || key).replace(/\$\w+\$/, '$COUNT$');
-    const host = document.createElement('script');
-    host.textContent = `window.__googleshotStrings = ${JSON.stringify({
+  // The page script runs in the main world, where chrome.i18n is not
+  // available and inline <script> tags are blocked by the page CSP (Google
+  // Docs ships a strict-dynamic policy). Hand the strings over through a
+  // DOM attribute instead: the two worlds share the DOM.
+  function publishStrings() {
+    const template = (key) => chrome.i18n.getMessage(key) || key;
+    document.documentElement.dataset.googleshotStrings = JSON.stringify({
       scanning: template('advScanningDocument'),
       pagesFound: template('advPagesFound'),
       slidesFound: template('advSlidesFound'),
-      cancel: chrome.i18n.getMessage('toolbarCancel') || 'Cancel',
-      cancelling: chrome.i18n.getMessage('statusCancelling') || 'Cancelling...',
-    })};`;
-    (document.head || document.documentElement).appendChild(host);
-    host.remove();
+      cancel: template('toolbarCancel'),
+      cancelling: template('statusCancelling'),
+      notFound: template('errCannotFind'),
+      needSource: template('errNeedSource'),
+      unknownMethod: template('errUnknownMethod'),
+    });
   }
 
   window.addEventListener('message', (event) => {
@@ -68,7 +74,7 @@
         }
       };
       window.addEventListener('message', onReady);
-      injectStrings();
+      publishStrings();
       injectPageScript().catch((error) => {
         clearTimeout(timer);
         reject(error);
@@ -79,9 +85,6 @@
 
   async function call(method, args = {}) {
     await ensureReady();
-    if (method === 'pages') {
-      injectStrings();
-    }
     const id = String(++counter);
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });

@@ -25,6 +25,12 @@ test('sanitizeFilename keeps the caller fallback', () => {
   assert.equal(sanitizeFilename(null), 'googleshot');
 });
 
+test('sanitizeFilename drops control characters and trailing dots', () => {
+  assert.equal(sanitizeFilename('re\u0000port\u001f.pdf'), 'report.pdf');
+  assert.equal(sanitizeFilename('Ends with dots...'), 'Ends with dots');
+  assert.equal(sanitizeFilename('...'), 'googleshot');
+});
+
 test('toMboxEntry escapes body lines starting with From', () => {
   const entry = toMboxEntry('From: a@b.c\nDate: Tue, 1 Sep 2026 12:40:42 +0000\n\nHello\nFrom mars\n');
   assert.match(entry, /^From a@b\.c /m);

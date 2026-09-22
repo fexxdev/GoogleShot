@@ -12,6 +12,7 @@ import {
   buildXml,
   collectThread,
   extractOriginalMessage,
+  matchAttachments,
   mergeAttachments,
   mimeParts,
   originalMessageUrl,
@@ -77,7 +78,86 @@ test('mimeParts parses the attachments of the raw message', () => {
   assert.equal(parts[0].filename, 'aiuti-2025.pdf');
   assert.equal(parts[0].mimeType, 'application/pdf');
   assert.equal(parts[0].base64, PDF_B64);
+  assert.equal(parts[0].size, 418532);
   assert.equal(parts[1].filename, 'image001.png');
+  assert.equal(parts[1].size, 0);
+});
+
+test('matchAttachments pairs the bytes by declared size', () => {
+  const parts = [
+    { filename: 'one.pdf', size: 4 },
+    { filename: 'two.png', size: 6 },
+  ];
+  // The DOM order is the opposite of the MIME order.
+  const fetched = [
+    { base64: 'two', bytes: 6, url: 'u2' },
+    { base64: 'one', bytes: 4, url: 'u1' },
+  ];
+  const { aligned, leftover } = matchAttachments(parts, fetched);
+  assert.equal(aligned[0].base64, 'one');
+  assert.equal(aligned[1].base64, 'two');
+  assert.equal(leftover, 0);
+});
+
+test('matchAttachments falls back to the DOM order without sizes', () => {
+  const parts = [{ filename: 'a', size: 0 }, { filename: 'b', size: 0 }];
+  const fetched = [
+    { base64: 'a', bytes: 10, url: '' },
+    { base64: 'b', bytes: 20, url: '' },
+  ];
+  const { aligned, leftover } = matchAttachments(parts, fetched);
+  assert.equal(aligned[0].base64, 'a');
+  assert.equal(aligned[1].base64, 'b');
+  assert.equal(leftover, 0);
+});
+
+test('collectThread pairs the attachment bytes with the right file', async () => {
+  // Gmail reports 418532 bytes for the PDF, but here the fetched payloads are
+  // tiny: force the size match by declaring the same sizes in the message.
+  const small = SKELETON
+    .replace('size=418532', 'size=4')
+    .replace('filename="image001.png"', 'filename="image001.png"; size=6');
+  const escapedSmall = small.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const entries = await collectThread({
+    ik: 'ik1',
+    authuser: 0,
+    messages: [
+      {
+        id: 'msg-f:1',
+        attachments: [
+          { attid: '0.2', url: 'https://x/png' },
+          { attid: '0.1', url: 'https://x/pdf' },
+        ],
+      },
+    ],
+    fetchText: async () => `<html><body><pre>${escapedSmall}</pre></body></html>`,
+    fetchBytes: async (url) =>
+      url.endsWith('/pdf') ? new Uint8Array([1, 2, 3, 4]) : new Uint8Array([1, 2, 3, 4, 5, 6]),
+  });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].attachments.length, 2);
+  assert.equal(entries[0].attachments[0].filename, 'aiuti-2025.pdf');
+  assert.equal(entries[0].attachments[0].base64, 'AQIDBA==');
+  assert.equal(entries[0].attachments[1].filename, 'image001.png');
+  assert.equal(entries[0].attachments[1].base64, 'AQIDBAUG');
+  assert.equal(entries.leftoverAttachments, 0);
+  assert.equal(entries.skipped, 0);
+});
+
+test('collectThread stops when the attachments are too large', async () => {
+  const escaped = SKELETON.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  await assert.rejects(
+    collectThread({
+      ik: 'ik1',
+      authuser: 0,
+      messages: [{ id: 'msg-f:1', attachments: [{ attid: '0.1', url: 'https://x/att1' }] }],
+      fetchText: async () => `<html><body><pre>${escaped}</pre></body></html>`,
+      fetchBytes: async () => new Uint8Array(1024),
+      byteLimit: 10,
+      limitMessage: 'Too large.',
+    }),
+    /Too large/
+  );
 });
 
 test('toMboxEntry uses the real sender and date in the separator', () => {
@@ -167,9 +247,19 @@ test('originalMessageUrl keeps the permmsgid colon literal', () => {
 test('buildText writes a readable thread with attachments', async () => {
   const entries = await collected();
   const text = buildText(entries);
+  assert.match(text, /From: .*erika@coopcampo\.it/);
+  assert.match(text, /Subject: sito Campo - Canù/);
+  assert.match(text, /Ciao Ragazzi,/);
+  assert.match(text, /\[attachment\] aiuti-2025\.pdf/);
+});
+
+test('buildText takes the localized labels', async () => {
+  const entries = await collected();
+  const text = buildText(entries, {
+    labels: { from: 'Da', to: 'A', date: 'Data', subject: 'Oggetto', attachment: 'allegato' },
+  });
   assert.match(text, /Da: .*erika@coopcampo\.it/);
   assert.match(text, /Oggetto: sito Campo - Canù/);
-  assert.match(text, /Ciao Ragazzi,/);
   assert.match(text, /\[allegato\] aiuti-2025\.pdf/);
 });
 

@@ -58,10 +58,18 @@ export async function runCli(argv, { exit = true } = {}) {
     }
     return code;
   };
+  // The help text is long: exit through the natural end of the process instead
+  // of process.exit(), which can truncate a piped stdout.
+  const quitHelp = () => {
+    if (exit) {
+      process.exitCode = 0;
+    }
+    return 0;
+  };
   const [command, ...rest] = argv;
-  if (!command || command === '-h' || command === '--help' || command === 'help') {
+  if (!command || command === '-h' || command === '--help' || command === 'help' || wantsHelp(argv)) {
     console.log(HELP);
-    return quit(0);
+    return quitHelp();
   }
   const name = COMMANDS[command] || command;
   if (name === 'browser') {
@@ -187,10 +195,6 @@ function wantsHelp(argv) {
 // can lose the session state and force a new Google login. The process exit
 // at the end already cleans up the socket.
 async function browserCommand(argv) {
-  if (wantsHelp(argv)) {
-    console.log(HELP);
-    return;
-  }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { endpoint } = await connectWithRestart(browser, options);
@@ -198,10 +202,6 @@ async function browserCommand(argv) {
 }
 
 async function loginCommand(argv) {
-  if (wantsHelp(argv)) {
-    console.log(HELP);
-    return 0;
-  }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { context } = await connectWithRestart(browser, options);
@@ -240,10 +240,6 @@ export function resolveSource(input, { doc = false, slides = false } = {}) {
 }
 
 async function captureCommand(argv) {
-  if (wantsHelp(argv)) {
-    console.log(HELP);
-    return;
-  }
   const options = parseOptions(argv);
   const source = resolveSource(options.source, options);
   const quality = parseQuality(options.quality);
@@ -276,7 +272,7 @@ async function captureCommand(argv) {
   await fs.mkdir(imagesDir, { recursive: true });
   // Overwrite our own "<item>-NNN.jpg" files, keep everything else, and drop
   // stale files from a previous longer capture. Never wipe the directory.
-  const stalePattern = new RegExp(`^${itemName}-\\d{3}\\.jpg$`);
+  const stalePattern = new RegExp(`^${itemName}-\\d{3,}\\.jpg$`);
   try {
     for (const entry of await fs.readdir(imagesDir)) {
       if (stalePattern.test(entry)) {

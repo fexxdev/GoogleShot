@@ -16,6 +16,12 @@ const DOCS_URL_PATTERNS = [
   'https://docs.google.com/presentation/*',
 ];
 
+// Attachments live in memory as base64 until the file is built: keep a ceiling
+// so a huge thread cannot take the service worker down. The batch limit is the
+// sum of the exported files before zipping.
+const MAX_THREAD_BYTES = 256 * 1024 * 1024;
+const MAX_BATCH_BYTES = 512 * 1024 * 1024;
+
 chrome.storage.local.get({ debug: false }).then((values) => {
   setDebug(values.debug);
   log('background:module-load', { version: chrome.runtime.getManifest().version, debug: values.debug });
@@ -59,29 +65,38 @@ function buildStrings() {
     done: t('advDone'),
     cancelled: t('statusCancelled'),
     unsupportedPage: t('errUnsupportedPage'),
-    editorMissing: t('errEditorMissing'),
-    slidesMissing: t('errSlidesMissing'),
     noPages: t('errNoPages'),
     noSlides: t('errNoSlides'),
-    pageMissing: (number) => t('errPageMissing', number),
     pageCapture: (number) => t('errPageCapture', number),
     slideOpen: (number) => t('errSlideOpen', number),
     noActiveTab: t('errNoActiveTab'),
     invalidRange: t('errInvalidRange'),
+    pageNoAnswer: t('errPageNoAnswer'),
+    cannotReadFile: t('errCannotReadFile'),
+    cannotSaveImages: t('errCannotSaveImages'),
     gmailReading: t('gmailReading'),
     gmailFetching: (current, total) => t('gmailFetching', current, total),
-    gmailAttachments: (current, total) => t('gmailAttachments', current, total),
     gmailBuilding: t('gmailBuilding'),
     gmailDone: (count) => t('gmailDone', count),
     gmailNotThread: t('errGmailNotThread'),
     gmailNoAttachments: t('gmailNoAttachments'),
     gmailNoSelection: t('gmailNoSelection'),
     gmailBatchProgress: (current, total, subject) => t('gmailBatchProgress', current, total, subject),
-    gmailUnauthorized: t('errGmailUnauthorized'),
-    gmailFailed: (reason) => t('errGmailFailed', reason),
+    gmailFetch: t('errGmailFetch'),
+    gmailFetchFailed: (reason) => t('errGmailFetchFailed', reason),
+    gmailResponse: (status) => t('errGmailResponse', status),
+    attachmentDownload: (status) => t('errAttachmentDownload', status),
+    gmailTooLarge: t('errGmailTooLarge'),
+    itemPage: t('itemPage'),
+    itemSlide: t('itemSlide'),
+    textFrom: t('textFrom'),
+    textTo: t('textTo'),
+    textCc: t('textCc'),
+    textDate: t('textDate'),
+    textSubject: t('textSubject'),
+    textAttachment: t('textAttachment'),
+    textAttachments: t('textAttachments'),
     popupCapture: t('popupCapture'),
-    popupCaptureHint: t('popupCaptureHint'),
-    popupOpenDocs: t('popupOpenDocs'),
     popupSaveImages: t('popupSaveImages'),
     popupQuality: t('popupQuality'),
     popupAdvanced: t('popupAdvanced'),
@@ -93,7 +108,6 @@ function buildStrings() {
     popupSpeedSafe: t('popupSpeedSafe'),
     popupFilename: t('popupFilename'),
     popupFilenamePlaceholder: t('popupFilenamePlaceholder'),
-    popupUnsupported: t('popupUnsupported'),
     popupGmailExport: t('popupGmailExport'),
     popupGmailFormat: t('popupGmailFormat'),
     popupFormatMbox: t('gmailMenuFormat_mbox'),
@@ -110,7 +124,6 @@ function buildStrings() {
     popupSiteOther: t('popupSiteOther'),
     popupHintDocs: t('popupHintDocs'),
     popupHintSlides: t('popupHintSlides'),
-    popupOpenGmail: t('popupOpenGmail'),
     popupDebug: t('popupDebug'),
     popupCopyLogs: t('popupCopyLogs'),
     popupCopied: t('popupCopied'),
@@ -157,6 +170,20 @@ function buildStrings() {
   };
 }
 
+// The plain-text and PDF exports need localized labels; the JSON, CSV and XML
+// formats keep machine-readable English names.
+function gmailLabels(strings) {
+  return {
+    from: strings.textFrom,
+    to: strings.textTo,
+    cc: strings.textCc,
+    date: strings.textDate,
+    subject: strings.textSubject,
+    attachment: strings.textAttachment,
+    attachments: strings.textAttachments,
+  };
+}
+
 function broadcast() {
   try {
     chrome.runtime
@@ -182,16 +209,16 @@ async function recordHistory(entry) {
   }
 }
 
-function blobToDataUrl(blob) {
+function blobToDataUrl(blob, message = 'Cannot read the file.') {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Cannot read the file.'));
+    reader.onerror = () => reject(new Error(message));
     reader.readAsDataURL(blob);
   });
 }
 
-async function fetchTextInPage(tabId, url) {
+async function fetchTextInPage(tabId, url, strings) {
   checkCancelled(t('statusCancelled'));
   const result = await chrome.scripting.executeScript({
     target: { tabId },
@@ -224,23 +251,59 @@ async function fetchTextInPage(tabId, url) {
     error: entry ? entry.error || null : 'no-result',
   });
   if (!entry) {
-    throw new Error('The page did not answer the fetch.');
+    throw new Error(strings.gmailFetch);
   }
   if (entry.error) {
-    throw new Error(`Page fetch failed: ${entry.error}`);
+    throw new Error(strings.gmailFetchFailed(entry.error));
   }
   if (!entry.ok) {
-    throw new Error(`Gmail responded ${entry.status}.`);
+    throw new Error(strings.gmailResponse(entry.status));
   }
   return entry.text;
 }
 
-async function fetchBytesInExtension(url) {
+// The content script lives in the isolated world, where window.GLOBALS and
+// window.GM_ID_KEY are not reachable: read them from the main world.
+async function readGmailGlobals(tabId) {
+  try {
+    const result = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const globals = window.GLOBALS || [];
+        return {
+          ik:
+            typeof window.GM_ID_KEY === 'string' && window.GM_ID_KEY
+              ? window.GM_ID_KEY
+              : typeof globals[9] === 'string'
+                ? globals[9]
+                : null,
+          account: typeof globals[10] === 'string' ? globals[10] : null,
+        };
+      },
+    });
+    return (result && result[0] && result[0].result) || null;
+  } catch (err) {
+    log('gmail:globals-failed', { tabId, reason: err && err.message });
+    return null;
+  }
+}
+
+async function gmailIdentity(tabId, auth) {
+  const globals = await readGmailGlobals(tabId);
+  return {
+    ...auth,
+    ik: (globals && globals.ik) || auth.ik,
+    account: (globals && globals.account) || auth.account,
+  };
+}
+
+async function fetchBytesInExtension(url, strings) {
   checkCancelled(t('statusCancelled'));
   const response = await fetch(url, { credentials: 'include' });
   log('gmail:attachment-fetch', { url: url.slice(0, 120), status: response.status, ok: response.ok });
   if (!response.ok) {
-    throw new Error(`Attachment download failed (${response.status}).`);
+    throw new Error(strings.attachmentDownload(response.status));
   }
   const buffer = await response.arrayBuffer();
   return new Uint8Array(buffer);
@@ -283,7 +346,8 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
   const format = EXPORT_FORMATS[formatName];
   const attachmentsOnly = Boolean(options.attachmentsOnly);
   const limit = Number(options.limit) > 0 ? Number(options.limit) : 0;
-  const { threadId, account, ik, authuser } = await gmailAuth(tabId);
+  const auth = await gmailAuth(tabId);
+  const { threadId, account, ik, authuser } = await gmailIdentity(tabId, auth);
   log('gmail:auth-parsed', { threadId, account, authuser, ik: ik ? `${ik.slice(0, 4)}...` : null });
   if (!threadId) {
     throw new Error(strings.gmailNotThread);
@@ -307,8 +371,10 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
     ik,
     authuser,
     messages: selected,
-    fetchText: (url) => fetchTextInPage(tabId, url),
-    fetchBytes: (url) => fetchBytesInExtension(url),
+    byteLimit: MAX_THREAD_BYTES,
+    limitMessage: strings.gmailTooLarge,
+    fetchText: (url) => fetchTextInPage(tabId, url, strings),
+    fetchBytes: (url) => fetchBytesInExtension(url, strings),
     onProgress: (done, total) => {
       log('gmail:progress', { done, total });
       setState({ message: strings.gmailFetching(done, total), percent: 5 + (done / total) * 80 });
@@ -320,6 +386,12 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
   }
   if (blocks.skipped) {
     log('gmail:skipped', { skipped: blocks.skipped });
+  }
+  if (blocks.leftoverAttachments) {
+    log('gmail:unmatched-attachments', { count: blocks.leftoverAttachments });
+  }
+  if (blocks.missingAttachments) {
+    log('gmail:missing-attachments', { count: blocks.missingAttachments });
   }
 
   setState({ message: strings.gmailBuilding, percent: 90 });
@@ -333,7 +405,7 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
     }
     const zip = buildAttachmentsZip(blocks);
     const filename = `${safeTitle}_allegati.zip`;
-    const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }));
+    const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }), strings.cannotReadFile);
     await chrome.downloads.download({ url, filename });
     log('gmail:download-started', { filename, attachments: total });
     setState({ message: strings.gmailDone(blocks.length), percent: 100 });
@@ -346,11 +418,11 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
     return { ok: true, count: blocks.length, title: safeTitle, format: 'zip' };
   }
 
-  const content = await format.build(blocks, { threadId, account });
+  const content = await format.build(blocks, { threadId, account, labels: gmailLabels(strings) });
   const filename = `${safeTitle}.${format.extension}`;
   log('gmail:export-built', { format: formatName, bytes: content.length, filename });
   const blob = new Blob([content], { type: format.mime });
-  const url = await blobToDataUrl(blob);
+  const url = await blobToDataUrl(blob, strings.cannotReadFile);
   await chrome.downloads.download({ url, filename });
   log('gmail:download-started', { filename });
   setState({ message: strings.gmailDone(blocks.length), percent: 100 });
@@ -406,8 +478,10 @@ async function exportGmailBatch(tabId, options = {}) {
     throw new Error(strings.gmailNoSelection);
   }
 
-  const { ik, authuser } = await gmailAuth(tabId);
+  const auth = await gmailAuth(tabId);
+  const { ik, authuser } = await gmailIdentity(tabId, auth);
   const files = {};
+  let totalBytes = 0;
   let done = 0;
   for (const thread of selected) {
     checkCancelled();
@@ -428,8 +502,10 @@ async function exportGmailBatch(tabId, options = {}) {
       ik,
       authuser,
       messages,
-      fetchText: (url) => fetchTextInPage(tabId, url),
-      fetchBytes: (url) => fetchBytesInExtension(url),
+      byteLimit: MAX_THREAD_BYTES,
+      limitMessage: strings.gmailTooLarge,
+      fetchText: (url) => fetchTextInPage(tabId, url, strings),
+      fetchBytes: (url) => fetchBytesInExtension(url, strings),
     });
     if (blocks.length) {
       let name = sanitizeFilename(blocks[0].subject || thread.subject || thread.threadId, 'gmail-thread');
@@ -438,8 +514,15 @@ async function exportGmailBatch(tabId, options = {}) {
         name = `${name}-${counter}`;
         counter += 1;
       }
-      const content = await format.build(blocks, { threadId: thread.threadId });
+      const content = await format.build(blocks, {
+        threadId: thread.threadId,
+        labels: gmailLabels(strings),
+      });
       files[`${name}.${format.extension}`] = new Uint8Array(content);
+      totalBytes += content.length;
+      if (totalBytes > MAX_BATCH_BYTES) {
+        throw new Error(strings.gmailTooLarge);
+      }
     }
     done += 1;
   }
@@ -448,7 +531,7 @@ async function exportGmailBatch(tabId, options = {}) {
   }
   const zip = buildThreadsZip(files);
   const filename = `gmail-threads-${selected.length}.zip`;
-  const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }));
+  const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }), strings.cannotReadFile);
   await chrome.downloads.download({ url, filename });
   log('gmail:batch-download-started', { filename, threads: Object.keys(files).length });
   setState({ message: strings.gmailDone(Object.keys(files).length), percent: 100 });
@@ -472,7 +555,8 @@ async function copyGmailThread(tabId) {
   state.error = null;
   const strings = buildStrings();
   try {
-    const { threadId, account, ik, authuser } = await gmailAuth(tabId);
+    const auth = await gmailAuth(tabId);
+    const { threadId, ik, authuser } = await gmailIdentity(tabId, auth);
     if (!threadId) {
       throw new Error(strings.gmailNotThread);
     }
@@ -488,11 +572,13 @@ async function copyGmailThread(tabId) {
       ik,
       authuser,
       messages,
-      fetchText: (url) => fetchTextInPage(tabId, url),
-      fetchBytes: (url) => fetchBytesInExtension(url),
+      byteLimit: MAX_THREAD_BYTES,
+      limitMessage: strings.gmailTooLarge,
+      fetchText: (url) => fetchTextInPage(tabId, url, strings),
+      fetchBytes: (url) => fetchBytesInExtension(url, strings),
     });
     setState({ message: '', percent: 0 });
-    return { ok: true, text: buildText(blocks) };
+    return { ok: true, text: buildText(blocks, { labels: gmailLabels(strings) }) };
   } finally {
     state.running = false;
     broadcast();
@@ -572,7 +658,8 @@ async function runCapture(tabId) {
       strings,
       errors: strings,
     });
-    setState({ message: t('statusDone', result.count, result.itemName), percent: 100 });
+    const item = result.itemName === 'page' ? strings.itemPage : strings.itemSlide;
+    setState({ message: t('statusDone', result.count, item), percent: 100 });
     recordHistory({
       action: 'capture',
       title: result.title,

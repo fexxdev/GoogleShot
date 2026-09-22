@@ -15,10 +15,6 @@ export function resetCancel() {
   cancelRequested = false;
 }
 
-export function isCancelled() {
-  return cancelRequested;
-}
-
 export function checkCancelled(message = 'Cancelled.') {
   if (cancelRequested) {
     throw new CancelledError(message);

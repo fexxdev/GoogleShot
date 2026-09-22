@@ -17,14 +17,32 @@ import { cleanTitle } from '../../shared/filename.js';
   }
   window.__googleshotChannel = true;
 
-  const messages = window.__googleshotStrings || {
+  const DEFAULTS = {
     scanning: 'Scanning the document... $COUNT$ pages found',
     pagesFound: '$COUNT$ pages found',
     slidesFound: '$COUNT$ slides found',
     cancel: 'Cancel',
     cancelling: 'Cancelling...',
+    notFound: 'Cannot find $THING$.',
+    needSource: 'Open a Google Doc or a Google Slides deck first.',
+    unknownMethod: 'Unknown GoogleShot action: $METHOD$.',
   };
-  const format = (template, count) => template.replace('$COUNT$', String(count));
+
+  // The content script publishes the localized strings on the <html> element:
+  // the main world cannot use chrome.i18n, and the page CSP blocks inline
+  // scripts written through textContent.
+  function readMessages() {
+    try {
+      const raw = document.documentElement.dataset.googleshotStrings;
+      return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : { ...DEFAULTS };
+    } catch {
+      return { ...DEFAULTS };
+    }
+  }
+
+  const messages = readMessages();
+  const fill = (template, token, value) => String(template || '').replace(token, String(value));
+  const format = (template, count) => fill(template, '$COUNT$', count);
   const strings = {
     scanning: (count) => format(messages.scanning, count),
     pagesFound: (count) => format(messages.pagesFound, count),
@@ -133,7 +151,7 @@ import { cleanTitle } from '../../shared/filename.js';
         return element;
       }
       if (Date.now() - start > timeout) {
-        throw new Error(`Cannot find ${selector}.`);
+        throw new Error(fill(messages.notFound, '$THING$', selector));
       }
       await sleep(200);
     }
@@ -247,7 +265,7 @@ import { cleanTitle } from '../../shared/filename.js';
         await slidesReady();
         return { kind: 'slides', title: pageTitle() };
       }
-      throw new Error('Open a Google Doc or a Google Slides deck first.');
+      throw new Error(messages.needSource);
     }
     if (method === 'pages') {
       if (isDoc()) {
@@ -284,7 +302,7 @@ import { cleanTitle } from '../../shared/filename.js';
       hide();
       return true;
     }
-    throw new Error(`Unknown method: ${method}`);
+    throw new Error(fill(messages.unknownMethod, '$METHOD$', method));
   }
 
   window.addEventListener('message', async (event) => {

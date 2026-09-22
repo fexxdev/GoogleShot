@@ -28,6 +28,33 @@
       }
     }
   },
+  "itemPage": {
+    "message": "pagina"
+  },
+  "itemSlide": {
+    "message": "slide"
+  },
+  "textFrom": {
+    "message": "Da"
+  },
+  "textTo": {
+    "message": "A"
+  },
+  "textCc": {
+    "message": "Cc"
+  },
+  "textDate": {
+    "message": "Data"
+  },
+  "textSubject": {
+    "message": "Oggetto"
+  },
+  "textAttachment": {
+    "message": "allegato"
+  },
+  "textAttachments": {
+    "message": "Allegati"
+  },
   "statusAlreadyRunning": {
     "message": "Una cattura è già in corso."
   },
@@ -92,25 +119,39 @@
   "errUnsupportedPage": {
     "message": "Qui non funziono. Apri un Documento Google o una presentazione Google Slides."
   },
-  "errEditorMissing": {
-    "message": "L'editor del documento non si è caricato. Ricarica la scheda e riprova."
+  "errNeedSource": {
+    "message": "Apri prima un Documento Google o una presentazione Google Slides."
   },
-  "errSlidesMissing": {
-    "message": "L'editor della presentazione non si è caricato. Ricarica la scheda e riprova."
+  "errCannotFind": {
+    "message": "Impossibile trovare $THING$.",
+    "placeholders": {
+      "thing": {
+        "content": "$1"
+      }
+    }
+  },
+  "errUnknownMethod": {
+    "message": "Azione GoogleShot sconosciuta: $METHOD$.",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "errPageNoAnswer": {
+    "message": "La pagina non ha risposto. Ricarica la scheda e riprova."
+  },
+  "errCannotReadFile": {
+    "message": "Impossibile leggere il file."
+  },
+  "errCannotSaveImages": {
+    "message": "Impossibile salvare le immagini JPEG."
   },
   "errNoPages": {
     "message": "Nessuna pagina trovata."
   },
   "errNoSlides": {
     "message": "Nessuna slide trovata."
-  },
-  "errPageMissing": {
-    "message": "Impossibile trovare la pagina $NUMBER$ nel documento.",
-    "placeholders": {
-      "number": {
-        "content": "$1"
-      }
-    }
   },
   "errPageCapture": {
     "message": "Impossibile catturare la pagina $NUMBER$.",
@@ -133,12 +174,6 @@
   },
   "popupCapture": {
     "message": "Cattura questa scheda"
-  },
-  "popupCaptureHint": {
-    "message": "Cattura ogni slide di una presentazione o ogni pagina di un documento."
-  },
-  "popupOpenDocs": {
-    "message": "Apri docs.google.com"
   },
   "popupSaveImages": {
     "message": "Salva anche le immagini JPEG"
@@ -173,9 +208,6 @@
   "popupFilenamePlaceholder": {
     "message": "Titolo del documento"
   },
-  "popupUnsupported": {
-    "message": "Qui non funziono. Apri prima un Documento Google o una presentazione Google Slides."
-  },
   "gmailMenuExport": {
     "message": "Scarica questa conversazione"
   },
@@ -199,17 +231,6 @@
       }
     }
   },
-  "gmailAttachments": {
-    "message": "Allegato $CURRENT$ di $TOTAL$...",
-    "placeholders": {
-      "current": {
-        "content": "$1"
-      },
-      "total": {
-        "content": "$2"
-      }
-    }
-  },
   "gmailBuilding": {
     "message": "Creazione del file .mbox..."
   },
@@ -224,16 +245,35 @@
   "errGmailNotThread": {
     "message": "Apri prima una conversazione Gmail."
   },
-  "errGmailUnauthorized": {
-    "message": "Sessione Gmail non trovata. Apri Gmail in questo browser e riprova."
+  "errGmailFetch": {
+    "message": "La pagina non ha risposto alla richiesta."
   },
-  "errGmailFailed": {
-    "message": "Esportazione Gmail non riuscita: $REASON$",
+  "errGmailFetchFailed": {
+    "message": "Richiesta alla pagina non riuscita: $REASON$",
     "placeholders": {
       "reason": {
         "content": "$1"
       }
     }
+  },
+  "errGmailResponse": {
+    "message": "Gmail ha risposto con stato $STATUS$.",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "errAttachmentDownload": {
+    "message": "Download dell'allegato non riuscito ($STATUS$).",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "errGmailTooLarge": {
+    "message": "Troppi dati per una sola esportazione. Prova con meno messaggi o con il formato .mbox."
   },
   "popupSiteDocs": {
     "message": "Documento Google"
@@ -255,9 +295,6 @@
   },
   "popupHintGmail": {
     "message": "Scarica la conversazione aperta con gli allegati in un file .mbox."
-  },
-  "popupOpenGmail": {
-    "message": "Apri Gmail"
   },
   "popupCopyLogs": {
     "message": "Copia i log di debug"

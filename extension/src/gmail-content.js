@@ -134,6 +134,8 @@
 
   function messages() {
     const byId = new Map();
+    const seen = new Set();
+    const currentUser = authuserFromUrl();
     const addAttachment = (url) => {
       let parsed;
       try {
@@ -141,18 +143,37 @@
       } catch {
         return;
       }
-      const permmsgid = parsed.searchParams.get('permmsgid') || '';
-      const attid = parsed.searchParams.get('attid') || '';
-      const id = permmsgid.replace(/^#/, '');
-      if (!id || !attid || !parsed.searchParams.get('view')?.startsWith('att')) {
+      if (parsed.protocol !== 'https:') {
         return;
       }
-      if (!byId.has(id)) {
-        byId.set(id, { id, attachments: [] });
+      // Some chips carry the parameters in the hash: "…#inbox/<id>?view=att&…".
+      const hashQuery = parsed.hash.includes('?')
+        ? parsed.hash.slice(parsed.hash.indexOf('?') + 1)
+        : '';
+      const query = parsed.search ? parsed.search.slice(1) : hashQuery;
+      if (!query) {
+        return;
       }
-      const entry = byId.get(id);
+      const params = new URLSearchParams(query);
+      const permmsgid = (params.get('permmsgid') || '').replace(/^#/, '');
+      const attid = params.get('attid') || '';
+      if (!permmsgid || !attid || !(params.get('view') || '').startsWith('att')) {
+        return;
+      }
+      // The hash never reaches the server: rebuild a fetchable URL from the
+      // parameters. Duplicates are common, so parse each URL only once.
+      const account = parsed.pathname.match(/^\/mail\/u\/(\d+)\//);
+      const fetchUrl = `${parsed.origin}/mail/u/${account ? account[1] : currentUser}/?${params.toString()}`;
+      if (seen.has(fetchUrl)) {
+        return;
+      }
+      seen.add(fetchUrl);
+      if (!byId.has(permmsgid)) {
+        byId.set(permmsgid, { id: permmsgid, attachments: [] });
+      }
+      const entry = byId.get(permmsgid);
       if (!entry.attachments.some((item) => item.attid === attid)) {
-        entry.attachments.push({ attid, url: parsed.href });
+        entry.attachments.push({ attid, url: fetchUrl });
       }
     };
 
@@ -166,6 +187,9 @@
     for (const anchor of document.querySelectorAll('a[href]')) {
       addAttachment(anchor.getAttribute('href'));
     }
+    // Gmail renders the attachment chips in several ways (chips, tooltips,
+    // data-href). Scanning every attribute is the only complete way to find
+    // them; the Set above keeps the repeated URLs cheap.
     for (const element of document.querySelectorAll('*')) {
       for (const attribute of element.attributes || []) {
         if (/view=att|attid=/.test(attribute.value)) {

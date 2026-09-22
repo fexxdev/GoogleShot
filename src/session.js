@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
-import { PROFILE_ROOT } from './browsers.js';
 import { systemColorScheme } from './theme.js';
 import { t } from './i18n.js';
 import { sleep } from './util.js';

@@ -28,6 +28,33 @@
       }
     }
   },
+  "itemPage": {
+    "message": "page"
+  },
+  "itemSlide": {
+    "message": "slide"
+  },
+  "textFrom": {
+    "message": "From"
+  },
+  "textTo": {
+    "message": "To"
+  },
+  "textCc": {
+    "message": "Cc"
+  },
+  "textDate": {
+    "message": "Date"
+  },
+  "textSubject": {
+    "message": "Subject"
+  },
+  "textAttachment": {
+    "message": "attachment"
+  },
+  "textAttachments": {
+    "message": "Attachments"
+  },
   "statusAlreadyRunning": {
     "message": "A capture is already running."
   },
@@ -92,25 +119,39 @@
   "errUnsupportedPage": {
     "message": "Doesn't work here. Open a Google Doc or a Google Slides deck."
   },
-  "errEditorMissing": {
-    "message": "The document editor did not load. Reload the tab and retry."
+  "errNeedSource": {
+    "message": "Open a Google Doc or a Google Slides deck first."
   },
-  "errSlidesMissing": {
-    "message": "The presentation editor did not load. Reload the tab and retry."
+  "errCannotFind": {
+    "message": "Cannot find $THING$.",
+    "placeholders": {
+      "thing": {
+        "content": "$1"
+      }
+    }
+  },
+  "errUnknownMethod": {
+    "message": "Unknown GoogleShot action: $METHOD$.",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "errPageNoAnswer": {
+    "message": "The page did not answer. Reload the tab and retry."
+  },
+  "errCannotReadFile": {
+    "message": "Cannot read the file."
+  },
+  "errCannotSaveImages": {
+    "message": "Cannot save the JPEG images."
   },
   "errNoPages": {
     "message": "No pages found."
   },
   "errNoSlides": {
     "message": "No slides found."
-  },
-  "errPageMissing": {
-    "message": "Cannot find page $NUMBER$ in the document.",
-    "placeholders": {
-      "number": {
-        "content": "$1"
-      }
-    }
   },
   "errPageCapture": {
     "message": "Cannot capture page $NUMBER$.",
@@ -133,12 +174,6 @@
   },
   "popupCapture": {
     "message": "Capture this tab"
-  },
-  "popupCaptureHint": {
-    "message": "Capture every slide of a deck or every page of a document."
-  },
-  "popupOpenDocs": {
-    "message": "Open docs.google.com"
   },
   "popupSaveImages": {
     "message": "Also save the JPEG images"
@@ -173,9 +208,6 @@
   "popupFilenamePlaceholder": {
     "message": "Document title"
   },
-  "popupUnsupported": {
-    "message": "Doesn't work here. Open a Google Doc or a Google Slides deck first."
-  },
   "gmailMenuExport": {
     "message": "Download this thread"
   },
@@ -199,17 +231,6 @@
       }
     }
   },
-  "gmailAttachments": {
-    "message": "Attachment $CURRENT$ of $TOTAL$...",
-    "placeholders": {
-      "current": {
-        "content": "$1"
-      },
-      "total": {
-        "content": "$2"
-      }
-    }
-  },
   "gmailBuilding": {
     "message": "Building the .mbox..."
   },
@@ -224,16 +245,35 @@
   "errGmailNotThread": {
     "message": "Open a Gmail thread first."
   },
-  "errGmailUnauthorized": {
-    "message": "Gmail session not found. Open Gmail in this browser and retry."
+  "errGmailFetch": {
+    "message": "The page did not answer the fetch."
   },
-  "errGmailFailed": {
-    "message": "The Gmail export failed: $REASON$",
+  "errGmailFetchFailed": {
+    "message": "Page fetch failed: $REASON$",
     "placeholders": {
       "reason": {
         "content": "$1"
       }
     }
+  },
+  "errGmailResponse": {
+    "message": "Gmail answered with status $STATUS$.",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "errAttachmentDownload": {
+    "message": "Attachment download failed ($STATUS$).",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "errGmailTooLarge": {
+    "message": "Too much data for one export. Try fewer messages, or the .mbox format."
   },
   "popupSiteDocs": {
     "message": "Google Docs"
@@ -255,9 +295,6 @@
   },
   "popupHintGmail": {
     "message": "Download the open thread with the attachments as an .mbox file."
-  },
-  "popupOpenGmail": {
-    "message": "Open Gmail"
   },
   "popupCopyLogs": {
     "message": "Copy debug logs"

@@ -7,6 +7,15 @@ const PAGE_WIDTH = 960;
 const DEBUGGER_VERSION = '1.3';
 const DEFAULT_QUALITY = 90;
 
+// The messages are localized by the caller (background.js); these are only the
+// fallbacks used before captureTab receives the real ones.
+const DEFAULT_ERRORS = {
+  pageNoAnswer: 'The page did not answer. Reload the tab and retry.',
+  cannotReadFile: 'Cannot read the file.',
+  cannotSaveImages: 'Cannot save the JPEG images.',
+};
+let errorStrings = { ...DEFAULT_ERRORS };
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function makeSleep(multiplier) {
@@ -49,7 +58,7 @@ async function pageCall(tabId, method, args = {}) {
     args,
   });
   if (!response) {
-    throw new Error('The page did not answer. Reload the Google Doc or Slides tab.');
+    throw new Error(errorStrings.pageNoAnswer);
   }
   if (!response.ok) {
     throw new Error(response.error || 'Page error.');
@@ -239,17 +248,17 @@ async function buildPdf(images) {
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
-function blobToDataUrl(blob) {
+function blobToDataUrl(blob, message = DEFAULT_ERRORS.cannotReadFile) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Cannot read the file.'));
+    reader.onerror = () => reject(new Error(message));
     reader.readAsDataURL(blob);
   });
 }
 
 async function downloadPdf(blob, filename) {
-  const url = await blobToDataUrl(blob);
+  const url = await blobToDataUrl(blob, errorStrings.cannotReadFile);
   await chrome.downloads.download({ url, filename });
 }
 
@@ -263,7 +272,7 @@ async function downloadImages(images, folderName, itemName) {
     const results = await Promise.allSettled(
       batch.map(async (item) => {
         const blob = new Blob([item.bytes], { type: 'image/jpeg' });
-        const url = await blobToDataUrl(blob);
+        const url = await blobToDataUrl(blob, errorStrings.cannotReadFile);
         await chrome.downloads.download({ url, filename: item.filename });
       })
     );
@@ -271,7 +280,7 @@ async function downloadImages(images, folderName, itemName) {
     if (failed) {
       throw new Error(failed.reason && failed.reason.message
         ? `Cannot save ${batch[results.indexOf(failed)].filename}: ${failed.reason.message}`
-        : 'Cannot save the JPEG images.');
+        : errorStrings.cannotSaveImages);
     }
     if (offset + 4 < queue.length) {
       await sleep(200);
@@ -287,6 +296,7 @@ export async function captureTab(tabId, options = {}) {
   if (!strings || !errors) {
     throw new Error('Missing strings.');
   }
+  errorStrings = { ...DEFAULT_ERRORS, ...errors };
   const tab = await chrome.tabs.get(tabId);
   if (!tab || !tab.url || !tab.url.includes('docs.google.com')) {
     throw new Error(errors.unsupportedPage);

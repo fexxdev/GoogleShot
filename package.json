@@ -5,7 +5,7 @@
   "type": "module",
   "bin": {
     "googleshot": "bin/googleshot.js",
-    "gshot": "bin/gshot.js"
+    "gshot": "bin/googleshot.js"
   },
   "engines": {
     "node": ">=20"
@@ -15,6 +15,7 @@
     "build": "node scripts/build-extension.mjs",
     "release": "node scripts/bump-version.mjs && node scripts/build-extension.mjs",
     "promo": "node scripts/promo.mjs",
+    "shots": "node scripts/shots.mjs",
     "pack": "node scripts/pack-extension.mjs",
     "test": "node --test test/*.test.js"
   },

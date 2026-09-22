@@ -1,9 +1,12 @@
 export function sanitizeFilename(name, fallback = 'googleshot') {
   const cleaned = (name || fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, '')
     .replace(/[/\\:*?"<>|]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 120);
+    .slice(0, 120)
+    // Windows refuses names that end with a dot or a space.
+    .replace(/[. ]+$/, '');
   return cleaned || fallback;
 }
 

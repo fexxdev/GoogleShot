@@ -40,7 +40,7 @@ English, Italian
 - `options-1280x800.png` — the options page with history
 - `promo-small-440x280.png` — the small promo tile (required)
 
-Source screenshots live in `store/screenshots/`. Regenerate with `npm run promo` (tile) and the PIL padding step; originals are kept untouched.
+Source screenshots live in `store/screenshots/`. Regenerate the popup and options shots, with the 1280x800 tiles, with `npm run shots` (headless Chromium renders the real pages with the extension APIs mocked); the small promo tile comes from `npm run promo`.
 
 Icon: `extension/icons/icon-128.png`
 

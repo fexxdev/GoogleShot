@@ -99,7 +99,6 @@ const FALLBACK = {
   popupGmailBatch: 'Export selected threads',
   popupCopiedThread: 'Copied',
   popupCancel: 'Cancel',
-  statusFailed: 'Failed',
 };
 
 const ICONS = {
