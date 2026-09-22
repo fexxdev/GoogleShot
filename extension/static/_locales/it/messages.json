@@ -344,5 +344,8 @@
   },
   "optionsNavHistory": {
     "message": "Cronologia"
+  },
+  "docsMenuCapture": {
+    "message": "Cattura in PDF"
   }
 }

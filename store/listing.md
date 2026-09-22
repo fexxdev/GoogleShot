@@ -12,6 +12,7 @@ GoogleShot is a local toolbox for Google Workspace.
 
 Capture every page of a Google Doc or every slide of a Google Slides deck as JPEG images and build one compact PDF. The capture renders the real editor, so the final state of every slide is kept.
 
+- right-click capture, or the popup
 - page range (for example `1-5,8`)
 - capture speed for slow machines
 - custom file name, JPEG quality, optional images folder

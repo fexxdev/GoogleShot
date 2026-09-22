@@ -26,7 +26,7 @@ Then open `chrome://extensions` (or `brave://extensions`), enable **Developer mo
 ### Use — Docs and Slides
 
 1. Open a document or a presentation.
-2. Click the GoogleShot icon and **Capture this tab**.
+2. Click the GoogleShot icon and **Capture this tab**, or right-click anywhere and pick **Capture this as PDF**.
 3. The PDF and the JPEG images land in your downloads.
 
 Options: page range (`1-5,8`), capture speed, file name, JPEG quality, save the images.

@@ -9,6 +9,10 @@ import {
 import { log, error, getLogs, setDebug } from './log.js';
 
 const GMAIL_URL_PATTERNS = ['https://mail.google.com/*'];
+const DOCS_URL_PATTERNS = [
+  'https://docs.google.com/document/*',
+  'https://docs.google.com/presentation/*',
+];
 
 chrome.storage.local.get({ debug: false }).then((values) => {
   setDebug(values.debug);
@@ -111,6 +115,7 @@ function buildStrings() {
     optionsNavHistory: t('optionsNavHistory'),
     statusReady: t('statusReady'),
     gmailMenuExport: t('gmailMenuExport'),
+    docsMenuCapture: t('docsMenuCapture'),
   };
 }
 
@@ -530,6 +535,18 @@ function setupContextMenus() {
       documentUrlPatterns: GMAIL_URL_PATTERNS,
     };
     chrome.contextMenus.create(
+      {
+        contexts: ['page'],
+        documentUrlPatterns: DOCS_URL_PATTERNS,
+        id: 'googleshot-capture',
+        title: t('docsMenuCapture'),
+      },
+      () => {
+        const createError = chrome.runtime.lastError;
+        log('menu:created-capture', { error: createError ? createError.message : null });
+      }
+    );
+    chrome.contextMenus.create(
       { ...base, id: 'googleshot-gmail-thread', title: t('gmailMenuExport') },
       () => {
         const createError = chrome.runtime.lastError;
@@ -569,6 +586,10 @@ setupContextMenus();
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   log('menu:clicked', { menuItemId: info.menuItemId, tabId: tab && tab.id, url: tab && tab.url });
   if (!tab || !tab.id) {
+    return;
+  }
+  if (info.menuItemId === 'googleshot-capture') {
+    runCapture(tab.id);
     return;
   }
   const match = String(info.menuItemId).match(/^googleshot-gmail-thread(?:-(\w+))?$/);
