@@ -11,6 +11,12 @@
       sendResponse({ ok: true, result });
       return true;
     }
+    if (message.method === 'message-ids') {
+      const ids = messageIds();
+      console.log('[GS] gmail-content:message-ids', ids);
+      sendResponse({ ok: true, result: ids });
+      return true;
+    }
     return undefined;
   });
 
@@ -53,5 +59,26 @@
       }
     }
     return null;
+  }
+
+  function messageIds() {
+    const ids = [];
+    const seen = new Set();
+    const collect = (text) => {
+      for (const match of String(text || '').matchAll(/msg-f:(\d+)/g)) {
+        if (!seen.has(match[1])) {
+          seen.add(match[1]);
+          ids.push(match[1]);
+        }
+      }
+    };
+    for (const element of document.querySelectorAll('[data-legacy-message-id], [data-message-id], a[href*="permmsgid"], [data-tooltip*="msg-f"]')) {
+      collect(element.getAttribute('data-legacy-message-id'));
+      collect(element.getAttribute('data-message-id'));
+      collect(element.getAttribute('href'));
+      collect(element.getAttribute('data-tooltip'));
+    }
+    collect(document.documentElement.innerHTML);
+    return ids;
   }
 })();

@@ -1,155 +1,92 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildMbox, collectThread, extractBody, messageToMbox } from '../extension/src/gmail.js';
+import {
+  buildMbox,
+  collectThread,
+  extractOriginalMessage,
+  originalMessageUrl,
+  unescapeHtml,
+} from '../extension/src/gmail.js';
 
-function part(mimeType, data, extra = {}) {
-  return {
-    mimeType,
-    filename: extra.filename || '',
-    body: data === null ? {} : { data },
-    ...(extra.parts ? { parts: extra.parts } : {}),
-  };
-}
+const SAMPLE_RFC822 = [
+  'Return-Path: <erika@example.com>',
+  'Received: from example.com',
+  'Subject: sito Campo - Canu',
+  'From: Erika <erika@example.com>',
+  'To: team.ledges@gmail.com',
+  'Date: Tue, 1 Sep 2026 14:40:00 +0200',
+  'MIME-Version: 1.0',
+  'Content-Type: multipart/mixed; boundary="b1"',
+  '',
+  '--b1',
+  'Content-Type: text/plain; charset="UTF-8"',
+  '',
+  'Ciao Ragazzi,',
+  '',
+  '--b1',
+  'Content-Type: application/pdf; name="aiuti-2025.pdf"',
+  'Content-Disposition: attachment; filename="aiuti-2025.pdf"',
+  'Content-Transfer-Encoding: base64',
+  '',
+  'JVBERi0xLjQK',
+  '--b1--',
+].join('\n');
 
-const b64 = (text) => Buffer.from(text, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
-
-function decodeBodyText(mbox) {
-  const separator = mbox.indexOf('\r\n\r\n');
-  if (separator === -1) {
-    return '';
-  }
-  const headers = mbox.slice(0, separator);
-  if (!headers.includes('Content-Transfer-Encoding: base64')) {
-    return '';
-  }
-  const payload = mbox.slice(separator + 4).split(/\r\n--/)[0].trim();
-  return Buffer.from(payload, 'base64').toString('utf8');
-}
-
-test('extractBody reads a simple text/plain payload', () => {
-  const payload = part('text/plain', b64('Ciao mondo'));
-  assert.equal(extractBody(payload), 'Ciao mondo');
+test('unescapeHtml restores the entities Gmail uses', () => {
+  assert.equal(unescapeHtml('a &lt;b&gt; &amp; &quot;c&quot;'), 'a <b> & "c"');
 });
 
-test('extractBody reads a multipart payload and prefers the first text part', () => {
-  const payload = {
-    mimeType: 'multipart/alternative',
-    parts: [part('text/plain', b64('plain body')), part('text/html', b64('<p>html body</p>'))],
-  };
-  assert.equal(extractBody(payload), 'plain body');
+test('extractOriginalMessage unescapes the entities inside the pre block', () => {
+  // Gmail escapes < > as entities but keeps quotes readable
+  const escaped = SAMPLE_RFC822.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = `<html><body><div class="page-wrapper"><pre>${escaped}</pre></div></body></html>`;
+  const message = extractOriginalMessage(html);
+  assert.match(message, /^From nobody@example\.com\n/);
+  assert.match(message, /Subject: sito Campo - Canu/);
+  assert.match(message, /Content-Disposition: attachment; filename="aiuti-2025\.pdf"/);
+  assert.match(message, /JVBERi0xLjQK/);
 });
 
-test('extractBody ignores attachments', () => {
-  const payload = {
-    mimeType: 'multipart/mixed',
-    parts: [
-      part('text/plain', b64('the body')),
-      { mimeType: 'application/pdf', filename: 'a.pdf', body: { attachmentId: 'att-1' } },
-    ],
-  };
-  assert.equal(extractBody(payload), 'the body');
+test('extractOriginalMessage rejects a page without the source', () => {
+  assert.throws(() => extractOriginalMessage('<html><body>nothing</body></html>'));
 });
 
-test('messageToMbox writes headers and a body', () => {
-  const message = {
-    id: 'm1',
-    internalDate: '1700000000000',
-    payload: {
-      headers: [
-        { name: 'Subject', value: 'Preventivo' },
-        { name: 'From', value: 'Ledges <team.ledges@gmail.com>' },
-        { name: 'To', value: 'cliente@example.com' },
-        { name: 'Date', value: 'Wed, 13 Sep 2026 10:00:00 +0200' },
-        { name: 'Message-ID', value: '<abc@mail.gmail.com>' },
-      ],
-    },
-  };
-  const mbox = messageToMbox(message, { body: 'Testo\nseconda riga', attachments: [] });
-  assert.match(mbox, /^From Ledges <team\.ledges@gmail\.com> Wed, 13 Sep 2026/);
-  assert.match(mbox, /Subject: Preventivo/);
-  assert.match(mbox, /Message-ID: <abc@mail\.gmail\.com>/);
-  assert.match(mbox, /Content-Type: text\/plain/);
-  assert.match(mbox, /\r\n\r\n$/);
+test('originalMessageUrl builds the view=om url', () => {
+  const url = originalMessageUrl({ authuser: 2, ik: 'abc', permmsgid: 'msg-f:123' });
+  assert.match(url, /\/mail\/u\/2\//);
+  assert.match(url, /view=om/);
+  assert.match(url, /permmsgid=msg-f%3A123/);
+  assert.match(url, /ik=abc/);
 });
 
-test('messageToMbox escapes From lines in the body', () => {
-  const message = { id: 'm2', payload: { headers: [{ name: 'From', value: 'a@b.c' }] } };
-  const mbox = messageToMbox(message, { body: 'From here\n>From there', attachments: [] });
-  const body = decodeBodyText(mbox);
-  assert.match(body, />From here/);
-  assert.match(body, /^>From there/m);
-});
-
-test('messageToMbox includes attachments as multipart blocks', () => {
-  const message = { id: 'm3', payload: { headers: [{ name: 'From', value: 'a@b.c' }] } };
-  const mbox = messageToMbox(message, {
-    body: 'see attached',
-    attachments: [
-      { filename: 'doc.pdf', mimeType: 'application/pdf', bytes: new Uint8Array([1, 2, 3, 4]) },
-    ],
-  });
-  assert.match(mbox, /multipart\/mixed/);
-  assert.match(mbox, /Content-Disposition: attachment; filename="doc\.pdf"/);
-  assert.match(mbox, /Content-Type: application\/pdf/);
-});
-
-test('buildMbox concatenates messages with From separators', () => {
-  const entry = (id) => ({
-    message: { id, payload: { headers: [{ name: 'From', value: `${id}@x.y` }] } },
-    body: `body ${id}`,
-    attachments: [],
-  });
-  const mbox = buildMbox([entry('m1'), entry('m2')]);
-  const separators = mbox.match(/^From /gm) || [];
-  assert.equal(separators.length, 2);
-  const parts = mbox.split(/(?=^From )/m);
-  const decoded = parts.map((part) => decodeBodyText(part));
-  assert.deepEqual(decoded, ['body m1', 'body m2']);
-});
-
-test('collectThread walks messages and downloads attachments', async () => {
-  const attachmentBytes = new Uint8Array([72, 105]);
-  const thread = {
-    messages: [
-      {
-        id: 'm1',
-        payload: {
-          headers: [{ name: 'Subject', value: 'Hi' }, { name: 'From', value: 'a@b.c' }],
-          mimeType: 'multipart/mixed',
-          parts: [
-            part('text/plain', b64('hello')),
-            { mimeType: 'image/jpeg', filename: 'image001.jpg', body: { attachmentId: 'att-9' } },
-          ],
-        },
-      },
-    ],
+test('collectThread fetches every message and joins them', async () => {
+  const html = (subject) => {
+    const raw = SAMPLE_RFC822.replace('sito Campo - Canu', subject);
+    const escaped = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    return `<html><body><pre>${escaped}</pre></body></html>`;
   };
   const calls = [];
-  const fetchText = async (url) => {
-    calls.push(url);
-    if (url.includes('/threads/')) {
-      return JSON.stringify(thread);
-    }
-    if (url.includes('/attachments/att-9')) {
-      return JSON.stringify({
-        data: Buffer.from(attachmentBytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
-      });
-    }
-    return 'not found';
-  };
   const progress = [];
-  const entries = await collectThread({
-    ik: 'ik',
-    account: 'me@x.y',
-    threadId: 't1',
-    fetchText,
+  const blocks = await collectThread({
+    ik: 'ik1',
+    authuser: 2,
+    messageIds: ['111', '222', '333'],
+    fetchText: async (url) => {
+      calls.push(url);
+      return html(`msg ${calls.length}`);
+    },
     onProgress: (done, total) => progress.push([done, total]),
   });
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].body, 'hello');
-  assert.equal(entries[0].attachments.length, 1);
-  assert.equal(entries[0].attachments[0].filename, 'image001.jpg');
-  assert.deepEqual(Array.from(entries[0].attachments[0].bytes), [72, 105]);
-  assert.deepEqual(progress, [[1, 1]]);
-  assert.equal(calls.length, 2);
+  assert.equal(blocks.length, 3);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(progress, [[1, 3], [2, 3], [3, 3]]);
+  const mbox = buildMbox(blocks);
+  const separators = mbox.match(/^From /gm) || [];
+  assert.equal(separators.length, 3);
+  assert.match(mbox, /msg 1/);
+  assert.match(mbox, /msg 3/);
 });

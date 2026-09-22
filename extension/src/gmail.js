@@ -1,233 +1,54 @@
 const GMAIL_ORIGIN = 'https://mail.google.com';
 
-function decodeBase64Url(data) {
-  const normalized = String(data || '').replace(/-/g, '+').replace(/_/g, '/');
-  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+const HTML_ENTITIES = {
+  '&lt;': '<',
+  '&gt;': '>',
+  '&amp;': '&',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+  '&nbsp;': ' ',
+};
+
+export function unescapeHtml(value) {
+  return String(value || '').replace(
+    /&(?:lt|gt|amp|quot|#39|apos|nbsp);/g,
+    (entity) => HTML_ENTITIES[entity] || entity
+  );
+}
+
+export function extractOriginalMessage(html) {
+  const source = String(html || '');
+  const match = source.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  if (!match) {
+    throw new Error('The original message is not in the page.');
   }
-  return bytes;
+  const message = unescapeHtml(match[1]).replace(/\r\n/g, '\n').replace(/\n+$/, '\n');
+  const separator = /^From .*\n/.test(message) ? '' : `From nobody@example.com\n`;
+  return `${separator}${message}\n`;
 }
 
-function decodeUtf8(bytes) {
-  return new TextDecoder('utf-8').decode(bytes);
-}
-
-function encodeBase64(bytes) {
-  let binary = '';
-  const chunk = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk));
+export function originalMessageUrl({ authuser = 0, ik, permmsgid }) {
+  const parts = [`view=om`, `permmsgid=${encodeURIComponent(permmsgid)}`];
+  if (ik) {
+    parts.unshift(`ik=${encodeURIComponent(ik)}`);
   }
-  return btoa(binary);
+  return `${GMAIL_ORIGIN}/mail/u/${Number(authuser) || 0}/?${parts.join('&')}`;
 }
 
-function headerValue(headers, name) {
-  const wanted = name.toLowerCase();
-  const found = (headers || []).find((header) => String(header.name || '').toLowerCase() === wanted);
-  return found ? String(found.value || '') : '';
-}
-
-function normalizeNewlines(text) {
-  return String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-}
-
-function escapeFromBody(body) {
-  return normalizeNewlines(body)
-    .split('\n')
-    .map((line) => (line.startsWith('From ') ? `>${line}` : line))
-    .join('\n');
-}
-
-function walkParts(payload, basePath) {
-  const parts = [];
-  const visit = (node, path) => {
-    if (!node) {
-      return;
-    }
-    const filename = node.filename || '';
-    const mimeType = node.mimeType || '';
-    if (node.body && node.body.attachmentId) {
-      parts.push({ node, path, filename, mimeType });
-    }
-    for (let index = 0; index < (node.parts || []).length; index += 1) {
-      visit(node.parts[index], `${path}.${index}`);
-    }
-  };
-  visit(payload, basePath);
-  return parts;
-}
-
-export function extractBody(payload) {
-  const candidates = [];
-  const visit = (node, isAttachment) => {
-    if (!node) {
-      return;
-    }
-    const filename = node.filename || '';
-    const attachmentId = node.body && node.body.attachmentId;
-    if (!attachmentId && !filename && node.mimeType === 'text/plain' && node.body && node.body.data) {
-      candidates.push(decodeUtf8(decodeBase64Url(node.body.data)));
-    }
-    if (!attachmentId && !filename && node.mimeType === 'text/html' && node.body && node.body.data) {
-      candidates.push(decodeUtf8(decodeBase64Url(node.body.data)));
-    }
-    for (const part of node.parts || []) {
-      visit(part, Boolean(attachmentId || filename));
-    }
-  };
-  visit(payload, false);
-  if (candidates.length === 0) {
-    return '';
-  }
-  return candidates[0];
-}
-
-function formatAddress(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-export function messageToMbox(message, options = {}) {
-  const payload = message.payload || {};
-  const headers = payload.headers || [];
-  const subject = headerValue(headers, 'subject');
-  const from = formatAddress(headerValue(headers, 'from'));
-  const to = formatAddress(headerValue(headers, 'to'));
-  const cc = formatAddress(headerValue(headers, 'cc'));
-  const date = headerValue(headers, 'date') || new Date(Number(message.internalDate) || Date.now()).toUTCString();
-  const messageId = headerValue(headers, 'message-id') || `${message.id}@mail.gmail.com`;
-  const body = escapeFromBody(options.body || '');
-  const attachments = options.attachments || [];
-
-  const mimeParts = [];
-  const hasPlain = Boolean(body);
-  if (attachments.length === 0) {
-    mimeParts.push({
-      headers: ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64'],
-      content: encodeBody(body),
-    });
-  } else {
-    const boundary = `----googleshot-${message.id || Date.now()}`;
-    const blocks = [encodeTextBlock(boundary, body)];
-    for (const attachment of attachments) {
-      blocks.push(
-        [
-          `--${boundary}`,
-          `Content-Type: ${attachment.mimeType || 'application/octet-stream'}; name="${attachment.filename || 'file'}"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${attachment.filename || 'file'}"`,
-          '',
-          encodeBody(attachment.bytes),
-        ].join('\r\n')
-      );
-    }
-    mimeParts.push({
-      headers: [`Content-Type: multipart/mixed; boundary="${boundary}"`],
-      content: `${blocks.join('\r\n')}\r\n--${boundary}--`,
-    });
-  }
-
-  const lines = [
-    `From ${from || 'nobody@example.com'} ${date}`,
-    `Subject: ${subject}`,
-    `From: ${from}`,
-    `To: ${to}`,
-  ];
-  if (cc) {
-    lines.push(`Cc: ${cc}`);
-  }
-  lines.push(`Date: ${date}`, `Message-ID: ${messageId}`, 'MIME-Version: 1.0');
-  for (const part of mimeParts) {
-    lines.push(...part.headers, '', part.content);
-  }
-  return `${lines.join('\r\n')}\r\n\r\n`;
-}
-
-function encodeBody(value) {
-  const bytes = value instanceof Uint8Array ? value : new TextEncoder().encode(normalizeNewlines(value));
-  const encoded = encodeBase64(bytes);
-  return (encoded.match(/.{1,76}/g) || ['']).join('\r\n');
-}
-
-function encodeTextBlock(boundary, body) {
-  return [
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-    '',
-    encodeBody(body),
-  ].join('\r\n');
-}
-
-export function buildMbox(messages) {
-  return messages.map((entry) => messageToMbox(entry.message, entry)).join('\n');
-}
-
-export function gmailUrl(authuser, path, ik) {
-  const base = `${GMAIL_ORIGIN}/mail/u/${Number(authuser) || 0}/gmail/v1/${path}`;
-  return ik ? `${base}${base.includes('?') ? '&' : '?'}ik=${encodeURIComponent(ik)}` : base;
-}
-
-function stripXssiPrefix(text) {
-  const value = String(text || '');
-  const prefixes = [")]}'\n", ") ] } '\n", "while(1);", "while (1);", "for(;;);"];
-  for (const prefix of prefixes) {
-    if (value.startsWith(prefix)) {
-      return value.slice(prefix.length);
-    }
-  }
-  return value.replace(/^\s*[,)]}\'"]+\s*\n?/, '');
-}
-
-function parseJsonText(text, label) {
-  const cleaned = stripXssiPrefix(text).trim();
-  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-    throw new Error(`${label} returned a web page instead of data`);
-  }
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error(`${label} returned invalid JSON`);
-  }
-}
-
-export async function fetchThread({ ik, account, authuser = 0, threadId, fetchText }) {
-  const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/threads/${threadId}?format=full`, ik);
-  return parseJsonText(await fetchText(url), 'Gmail API');
-}
-
-export async function fetchAttachment({ ik, account, authuser = 0, messageId, attachmentId, fetchText }) {
-  const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/messages/${messageId}/attachments/${attachmentId}`, ik);
-  const json = parseJsonText(await fetchText(url), 'Gmail attachment');
-  return decodeBase64Url(json.data || '');
-}
-
-export async function collectThread({ ik, account, authuser = 0, threadId, fetchText, onProgress }) {
-  const thread = await fetchThread({ ik, account, authuser, threadId, fetchText });
-  const messages = thread.messages || [];
-  const entries = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
-    const body = extractBody(message.payload);
-    const attachmentParts = walkParts(message.payload, '0');
-    const attachments = [];
-    for (const part of attachmentParts) {
-      const bytes = await fetchAttachment({
-        ik,
-        account,
-        authuser,
-        messageId: message.id,
-        attachmentId: part.node.body.attachmentId,
-        fetchText,
-      });
-      attachments.push({ filename: part.filename, mimeType: part.mimeType, bytes });
-    }
-    entries.push({ message, body, attachments });
+export async function collectThread({ ik, authuser = 0, messageIds, fetchText, onProgress }) {
+  const blocks = [];
+  for (let index = 0; index < messageIds.length; index += 1) {
+    const url = originalMessageUrl({ authuser, ik, permmsgid: `msg-f:${messageIds[index]}` });
+    const html = await fetchText(url);
+    blocks.push(extractOriginalMessage(html));
     if (onProgress) {
-      onProgress(index + 1, messages.length);
+      onProgress(index + 1, messageIds.length);
     }
   }
-  return entries;
+  return blocks;
+}
+
+export function buildMbox(blocks) {
+  return blocks.map((block) => block.replace(/\r\n/g, '\n')).join('\n');
 }

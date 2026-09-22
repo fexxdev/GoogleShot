@@ -174,41 +174,47 @@ async function exportGmailThread(tabId) {
   const strings = buildStrings();
   const { threadId, account, ik, authuser } = await gmailAuth(tabId);
   log('gmail:auth-parsed', { threadId, account, authuser, ik: ik ? `${ik.slice(0, 4)}...` : null });
-  if (!threadId || !account) {
+  if (!threadId) {
+    throw new Error(strings.gmailNotThread);
+  }
+
+  const messageIds = await chrome.tabs
+    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'message-ids' })
+    .then((response) => (response && response.ok ? response.result : null))
+    .catch(() => null);
+  log('gmail:message-ids', { count: messageIds ? messageIds.length : 0, ids: messageIds });
+  if (!messageIds || messageIds.length === 0) {
     throw new Error(strings.gmailNotThread);
   }
 
   setState({ message: strings.gmailReading, percent: 5 });
-  const entries = await collectThread({
+  const blocks = await collectThread({
     ik,
-    account,
     authuser,
-    threadId,
+    messageIds,
     fetchText: (url) => fetchTextInPage(tabId, url),
     onProgress: (done, total) => {
       log('gmail:progress', { done, total });
       setState({ message: strings.gmailFetching(done, total), percent: 5 + (done / total) * 80 });
     },
   });
-  log('gmail:collected', { messages: entries.length, attachments: entries.reduce((sum, e) => sum + e.attachments.length, 0) });
-  if (!entries.length) {
+  log('gmail:collected', { messages: blocks.length, bytes: blocks.reduce((sum, b) => sum + b.length, 0) });
+  if (!blocks.length) {
     throw new Error(strings.gmailNotThread);
   }
 
   setState({ message: strings.gmailBuilding, percent: 90 });
-  const mbox = buildMbox(entries);
-  const subjectHeader = (entries[0].message.payload?.headers || []).find(
-    (header) => String(header.name).toLowerCase() === 'subject'
-  );
-  const title = subjectHeader ? subjectHeader.value : 'gmail-thread';
+  const mbox = buildMbox(blocks);
+  const subjectMatch = blocks[0].match(/^Subject:\s*(.+)$/m);
+  const title = subjectMatch ? subjectMatch[1] : 'gmail-thread';
   const safeTitle = sanitizeFilename(title);
   log('gmail:mbox-built', { bytes: mbox.length, filename: `${safeTitle}.mbox` });
   const blob = new Blob([mbox], { type: 'application/mbox' });
   const url = await blobToDataUrl(blob);
   await chrome.downloads.download({ url, filename: `${safeTitle}.mbox` });
   log('gmail:download-started', { filename: `${safeTitle}.mbox` });
-  setState({ message: strings.gmailDone(entries.length), percent: 100 });
-  return { ok: true, count: entries.length, title: safeTitle };
+  setState({ message: strings.gmailDone(blocks.length), percent: 100 });
+  return { ok: true, count: blocks.length, title: safeTitle };
 }
 
 async function runGmail(tabId) {
