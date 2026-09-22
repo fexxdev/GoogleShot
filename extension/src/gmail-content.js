@@ -20,6 +20,18 @@
     return undefined;
   });
 
+  function findIk() {
+    if (typeof window.GM_ID_KEY === 'string' && window.GM_ID_KEY) {
+      return window.GM_ID_KEY;
+    }
+    const globals = window.GLOBALS || [];
+    if (typeof globals[9] === 'string' && globals[9]) {
+      return globals[9];
+    }
+    const match = document.documentElement.outerHTML.match(/GM_ID_KEY\s*=\s*'([a-f0-9]+)'/i);
+    return match ? match[1] : null;
+  }
+
   function authInfo() {
     const globals = window.GLOBALS || [];
     let account = typeof globals[10] === 'string' ? globals[10] : null;
@@ -37,7 +49,7 @@
     }
     return {
       threadId: threadIdFromUrl(),
-      ik: typeof globals[9] === 'string' ? globals[9] : null,
+      ik: findIk(),
       account,
       authuser: authuserFromUrl(),
     };
