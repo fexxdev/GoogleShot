@@ -65,21 +65,145 @@ async function docPagePositions(page) {
 }
 
 async function docPageElement(page, number) {
-  const domIndex = await page.evaluate(
-    ({ pageSelector, wanted }) => {
-      const pages = Array.from(document.querySelectorAll(pageSelector));
-      for (let index = 0; index < pages.length; index += 1) {
-        const rect = pages[index].getBoundingClientRect();
-        const atTop = rect.top < 150 && rect.bottom > 150;
-        if (atTop && Number(pages[index].style.zIndex || 0) === wanted) {
-          return index;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const domIndex = await page.evaluate(
+      ({ pageSelector, wanted }) => {
+        const pages = Array.from(document.querySelectorAll(pageSelector));
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let index = 0; index < pages.length; index += 1) {
+          if (Number(pages[index].style.zIndex || 0) !== wanted) {
+            continue;
+          }
+          const rect = pages[index].getBoundingClientRect();
+          if (rect.bottom < 0 || rect.top > window.innerHeight) {
+            continue;
+          }
+          const distance = Math.abs(rect.top - 150);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = index;
+          }
         }
+        return best;
+      },
+      { pageSelector: DOC_PAGE_SELECTOR, wanted: number }
+    );
+    if (domIndex !== -1) {
+      return page.locator(DOC_PAGE_SELECTOR).nth(domIndex);
+    }
+    await sleep(400);
+  }
+  return null;
+}
+
+async function docSlice(page, number) {
+  return page.evaluate(
+    ({ editorSelector, pageSelector, wanted }) => {
+      const editor = document.querySelector(editorSelector);
+      if (!editor) {
+        return null;
       }
-      return -1;
+      const editorRect = editor.getBoundingClientRect();
+      for (const element of document.querySelectorAll(pageSelector)) {
+        if (Number(element.style.zIndex || 0) !== wanted) {
+          continue;
+        }
+        const rect = element.getBoundingClientRect();
+        const top = Math.max(rect.top, editorRect.top + 1, 0);
+        const bottom = Math.min(rect.bottom, editorRect.bottom - 1, window.innerHeight);
+        if (bottom <= top) {
+          return null;
+        }
+        const canvas = element.querySelector('canvas.kix-canvas-tile-content');
+        return {
+          x: rect.x,
+          pageWidth: rect.width,
+          pageHeight: rect.height,
+          scale: canvas && rect.width > 0 ? canvas.width / rect.width : window.devicePixelRatio || 1,
+          visiblePageTop: top - rect.top,
+          visibleHeight: bottom - top,
+          clipTop: top,
+          clientHeight: editor.clientHeight,
+        };
+      }
+      return null;
     },
-    { pageSelector: DOC_PAGE_SELECTOR, wanted: number }
+    { editorSelector: DOC_EDITOR_SELECTOR, pageSelector: DOC_PAGE_SELECTOR, wanted: number }
   );
-  return domIndex === -1 ? null : page.locator(DOC_PAGE_SELECTOR).nth(domIndex);
+}
+
+async function docCapturePage(page, number, quality) {
+  const slices = [];
+  let covered = 0;
+  let pageHeight = null;
+  let pageWidth = null;
+  let pageScale = 1;
+  let guard = 0;
+  while (guard < 20 && (pageHeight === null || covered < pageHeight - 2)) {
+    guard += 1;
+    const slice = await docSlice(page, number);
+    if (!slice) {
+      break;
+    }
+    pageHeight = slice.pageHeight;
+    pageWidth = slice.pageWidth;
+    pageScale = slice.scale;
+    const sliceEnd = slice.visiblePageTop + slice.visibleHeight;
+    if (sliceEnd <= covered + 2) {
+      break;
+    }
+    const skip = Math.max(0, covered - slice.visiblePageTop);
+    const clipHeight = slice.visibleHeight - skip;
+    if (clipHeight <= 0) {
+      break;
+    }
+    const image = await page.screenshot({
+      type: 'jpeg',
+      quality,
+      clip: {
+        x: slice.x,
+        y: slice.clipTop + skip,
+        width: slice.pageWidth,
+        height: clipHeight,
+      },
+    });
+    slices.push({
+      offset: Math.round(slice.visiblePageTop + skip),
+      image: image.toString('base64'),
+    });
+    covered = sliceEnd;
+    if (covered >= pageHeight - 2) {
+      break;
+    }
+    await page.locator(DOC_EDITOR_SELECTOR).first().evaluate((element, value) => {
+      element.scrollTop = element.scrollTop + value;
+    }, slice.clientHeight - 80);
+    await sleep(700);
+  }
+  if (slices.length === 0 || pageHeight === null || pageWidth === null) {
+    return null;
+  }
+  const base64 = await page.evaluate(
+    async ({ parts, height, width, scale, quality }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const anchor = Math.min(...parts.map((part) => part.offset));
+      for (const part of parts) {
+        const image = new Image();
+        image.src = `data:image/jpeg;base64,${part.image}`;
+        await image.decode();
+        ctx.drawImage(image, 0, Math.round((part.offset - anchor) * scale), canvas.width, image.height);
+      }
+      return canvas.toDataURL('image/jpeg', quality / 100).split(',')[1];
+    },
+    { parts: slices, height: Math.round(pageHeight), width: pageWidth, scale: pageScale, quality }
+  );
+  return Buffer.from(base64, 'base64');
 }
 
 export async function captureDocument(
@@ -147,11 +271,14 @@ export async function captureDocument(
       await sleep(400);
       const locator = await docPageElement(page, target.index);
       if (!locator) {
-        continue;
+        throw new Error(`Cannot find page ${target.index + 1} in the document.`);
       }
       await locator.locator('canvas').first().waitFor({ state: 'visible', timeout: 15000 });
-      await sleep(350);
-      pages.push(await locator.screenshot({ type: 'jpeg', quality }));
+      const image = await docCapturePage(page, target.index, quality);
+      if (!image) {
+        throw new Error(`Cannot capture page ${target.index + 1}.`);
+      }
+      pages.push(image);
       onProgress(`Page ${pages.length} of ${targets.length} captured`);
     }
     if (pages.length === 0) {

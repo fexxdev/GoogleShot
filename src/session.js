@@ -270,7 +270,10 @@ export function loadCookies() {
   }
 }
 
-export async function launchHeadless(cookies, { deviceScaleFactor = 1.5 } = {}) {
+export async function launchHeadless(
+  cookies,
+  { deviceScaleFactor = 1.5, viewport = { width: 1600, height: 1400 } } = {}
+) {
   const options = {
     headless: true,
     args: ['--disable-blink-features=AutomationControlled'],
@@ -283,7 +286,7 @@ export async function launchHeadless(cookies, { deviceScaleFactor = 1.5 } = {}) 
     browser = await chromium.launch(options);
   }
   const context = await browser.newContext({
-    viewport: { width: 1600, height: 1000 },
+    viewport,
     deviceScaleFactor,
     colorScheme: systemColorScheme(),
   });
