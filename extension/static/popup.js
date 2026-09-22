@@ -4,6 +4,7 @@ const error = document.getElementById('error');
 const capture = document.getElementById('capture');
 const open = document.getElementById('open');
 const images = document.getElementById('images');
+const quality = document.getElementById('quality');
 
 const isGooglePage = (url) =>
   Boolean(url && /^https:\/\/docs\.google\.com\/(document|presentation)\/d\//.test(url));
@@ -45,8 +46,9 @@ async function refresh() {
       render(response.state);
     }
   }
-  const values = await chrome.storage.local.get({ imageFolder: false });
+  const values = await chrome.storage.local.get({ imageFolder: false, quality: 90 });
   images.checked = Boolean(values.imageFolder);
+  quality.value = String(values.quality);
 }
 
 capture.addEventListener('click', async () => {
@@ -76,6 +78,10 @@ open.addEventListener('click', () => {
 
 images.addEventListener('change', () => {
   chrome.storage.local.set({ imageFolder: images.checked });
+});
+
+quality.addEventListener('change', () => {
+  chrome.storage.local.set({ quality: Number(quality.value) });
 });
 
 chrome.runtime.onMessage.addListener((message) => {

@@ -53,15 +53,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true, state: { ...state } });
     return true;
   }
-  if (message.method === 'open-tab') {
-    chrome.tabs.create({ url: message.url }).then(() => sendResponse({ ok: true }));
-    return true;
-  }
   return undefined;
-});
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get({ imageFolder: false }).then((values) => {
-    chrome.storage.local.set({ imageFolder: values.imageFolder });
-  });
 });

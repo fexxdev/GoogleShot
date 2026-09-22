@@ -2,6 +2,7 @@ import { PDFDocument } from 'pdf-lib';
 
 const PAGE_WIDTH = 960;
 const DEBUGGER_VERSION = '1.3';
+const DEFAULT_QUALITY = 90;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -64,10 +65,10 @@ async function ensurePageScript(tabId) {
   });
 }
 
-function captureClip(target, clip) {
+function captureClip(target, clip, quality) {
   return sendCommand(target, 'Page.captureScreenshot', {
     format: 'jpeg',
-    quality: 90,
+    quality,
     fromSurface: true,
     captureBeyondViewport: false,
     clip: {
@@ -80,7 +81,7 @@ function captureClip(target, clip) {
   });
 }
 
-async function compose(slices, pageWidth, pageHeight, scale) {
+async function compose(slices, pageWidth, pageHeight, scale, quality) {
   const images = [];
   let width = Math.ceil(pageWidth * scale);
   let height = Math.ceil(pageHeight * scale);
@@ -99,11 +100,11 @@ async function compose(slices, pageWidth, pageHeight, scale) {
     ctx.drawImage(image.bitmap, 0, Math.round((image.offset - anchor) * scale));
     image.bitmap.close();
   }
-  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
+  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: quality / 100 });
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-async function captureDoc(target, tabId, onProgress) {
+async function captureDoc(target, tabId, onProgress, quality) {
   onProgress('Finding the pages...', 2);
   const { pages } = await pageCall(tabId, 'pages');
   if (!pages.length) {
@@ -141,12 +142,16 @@ async function captureDoc(target, tabId, onProgress) {
       if (clipHeight <= 0) {
         break;
       }
-      const shot = await captureClip(target, {
-        x: slice.x,
-        y: slice.clipTop + skip,
-        width: slice.width,
-        height: clipHeight,
-      });
+      const shot = await captureClip(
+        target,
+        {
+          x: slice.x,
+          y: slice.clipTop + skip,
+          width: slice.width,
+          height: clipHeight,
+        },
+        quality
+      );
       slices.push({ offset: Math.round(slice.visibleTop + skip), data: shot.data });
       covered = sliceEnd;
       if (covered >= pageHeight - 2) {
@@ -157,17 +162,17 @@ async function captureDoc(target, tabId, onProgress) {
     if (slices.length === 0 || !pageHeight) {
       throw new Error(`Cannot capture page ${position + 1}.`);
     }
-    const image = await compose(slices, pageWidth, pageHeight, pageScale);
+    const image = await compose(slices, pageWidth, pageHeight, pageScale, quality);
     images.push(image);
-    onProgress(
-      `Page ${position + 1} of ${pages.length} captured`,
-      5 + ((position + 1) / pages.length) * 80
-    );
+    const message = `Page ${position + 1} of ${pages.length} captured`;
+    const percent = 5 + ((position + 1) / pages.length) * 80;
+    onProgress(message, percent);
+    pageCall(tabId, 'show', { message, percent }).catch(() => {});
   }
   return { images, itemName: 'page' };
 }
 
-async function captureSlides(target, tabId, onProgress) {
+async function captureSlides(target, tabId, onProgress, quality) {
   onProgress('Finding the slides...', 2);
   const { slides } = await pageCall(tabId, 'pages');
   if (!slides.length) {
@@ -182,13 +187,13 @@ async function captureSlides(target, tabId, onProgress) {
     }
     await sleep(600);
     const rect = await pageCall(tabId, 'slideRect');
-    const shot = await captureClip(target, rect);
+    const shot = await captureClip(target, rect, quality);
     const blob = await (await fetch(`data:image/jpeg;base64,${shot.data}`)).blob();
     images.push(new Uint8Array(await blob.arrayBuffer()));
-    onProgress(
-      `Slide ${position + 1} of ${slides.length} captured`,
-      5 + ((position + 1) / slides.length) * 80
-    );
+    const message = `Slide ${position + 1} of ${slides.length} captured`;
+    const percent = 5 + ((position + 1) / slides.length) * 80;
+    onProgress(message, percent);
+    pageCall(tabId, 'show', { message, percent }).catch(() => {});
   }
   return { images, itemName: 'slide' };
 }
@@ -228,13 +233,13 @@ async function downloadPdf(blob, filename) {
   await chrome.downloads.download({ url, filename, saveAs: true });
 }
 
-async function downloadImages(images, baseName, itemName) {
+async function downloadImages(images, folderName, itemName) {
   for (let index = 0; index < images.length; index += 1) {
     const blob = new Blob([images[index]], { type: 'image/jpeg' });
     const url = await blobToDataUrl(blob);
     await chrome.downloads.download({
       url,
-      filename: `${baseName}_${itemName}s/${itemName}-${String(index + 1).padStart(3, '0')}.jpg`,
+      filename: `${folderName}/${itemName}-${String(index + 1).padStart(3, '0')}.jpg`,
     });
     await sleep(250);
   }
@@ -256,16 +261,20 @@ export async function captureTab(tabId, onProgress = () => {}) {
     await chrome.debugger.attach(target, DEBUGGER_VERSION);
     attached = true;
 
+    const { quality: storedQuality, imageFolder } = await chrome.storage.local.get({
+      quality: DEFAULT_QUALITY,
+      imageFolder: false,
+    });
+    const quality = Math.min(100, Math.max(1, Number(storedQuality) || DEFAULT_QUALITY));
     const description = await pageCall(tabId, 'describe');
     const result =
       description.kind === 'doc'
-        ? await captureDoc(target, tabId, onProgress)
-        : await captureSlides(target, tabId, onProgress);
+        ? await captureDoc(target, tabId, onProgress, quality)
+        : await captureSlides(target, tabId, onProgress, quality);
 
     onProgress('Building the PDF...', 90);
     const baseName = sanitizeFilename(description.title);
     const pdf = await buildPdf(result.images);
-    const { imageFolder } = await chrome.storage.local.get({ imageFolder: false });
     if (imageFolder) {
       await downloadImages(result.images, `${baseName}_${result.itemName}s`, result.itemName);
     }

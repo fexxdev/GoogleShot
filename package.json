@@ -1,6 +1,6 @@
 {
   "name": "googleshot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Capture every slide of a Google Slides presentation or every page of a Google Doc as JPEG images and build a PDF.",
   "type": "module",
   "bin": {
@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "node bin/googleshot.js",
-    "build": "node scripts/build-extension.mjs"
+    "build": "node scripts/build-extension.mjs",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [
     "google-slides",

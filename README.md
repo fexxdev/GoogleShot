@@ -28,6 +28,8 @@ npm run build
 2. Click the GoogleShot icon and then **Capture this tab**.
 3. The PDF downloads with the document name. Enable **Also save the JPEG images** to save the images too.
 
+The page shows a small progress panel while the capture runs. Keep the tab open until it finishes. The JPEG quality selector controls the image compression, like `--quality` on the CLI.
+
 The capture uses the Chrome debugger API. Chrome shows a small "being debugged" banner while the capture runs. The extension never reads your cookies and never uploads anything.
 
 ## CLI
