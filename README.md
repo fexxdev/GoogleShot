@@ -14,6 +14,8 @@ Everything runs on your machine. No server, no analytics, no uploads.
 
 **From the store**: (link coming soon)
 
+**From a release**: download `googleshot-<version>.zip` from [Releases](https://github.com/fexxdev/GoogleShot/releases), unzip it, then load the unzipped folder as below.
+
 **From source**:
 
 ```sh
@@ -83,6 +85,7 @@ npm test            # unit tests
 npm run check:compose  # Docs compose check on a mock page (real Chrome)
 npm run build       # build the extension into extension/
 npm run shots       # regenerate the store screenshots
+npm run pack        # zip the built extension into dist/ for the store
 npm run release     # bump the patch version, then build
 ```
 
@@ -95,6 +98,8 @@ Layout:
 - `test/` — unit tests
 
 Every `npm run release` bumps the extension version, so you always know which build is loaded. Plain `npm run build` never touches the version.
+
+Release notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

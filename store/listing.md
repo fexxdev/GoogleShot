@@ -24,6 +24,10 @@ Gmail: scarica una conversazione aperta come archivio con gli allegati dentro. S
 
 Tutto avviene sul tuo computer: nessun server, nessun account, nessun tracciamento. I file finiscono direttamente nella cartella dei download. Disponibile in italiano e inglese.
 
+## What's new in 0.3.13 (store field, 500 characters max)
+
+First release. Capture Docs and Slides as PDF, or download Gmail threads with the attachments. Page ranges, JPEG images, seven export formats, attachments-only export, several threads in one zip. Everything runs on your machine: no server, no account, no tracking. English and Italian.
+
 ## Category
 
 Productivity
