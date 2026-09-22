@@ -1,5 +1,4 @@
 import { build } from 'esbuild';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,9 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outdir = path.join(root, 'extension');
 
-execFileSync(process.execPath, [path.join(root, 'scripts/bump-version.mjs')], {
-  stdio: 'inherit',
-});
+// Version bumps happen only via `npm run release`, never on a plain build,
+// so local builds stay reproducible and never dirty git by surprise.
 
 const common = {
   bundle: true,

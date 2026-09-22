@@ -38,6 +38,8 @@ const MESSAGES = {
     unknownBrowser: 'Unknown browser "$1". Available: $2.',
     browserNotInstalled: '$1 is not installed.',
     cannotOpenPage: 'Cannot open a page in $1.',
+    missingValue: 'Missing value for $1.',
+    docSlidesConflict: 'Use either --doc or --slides, not both.',
   },
   it: {
     missingPresentation: 'URL o ID della presentazione mancante.',
@@ -78,6 +80,8 @@ const MESSAGES = {
     unknownBrowser: 'Browser sconosciuto "$1". Disponibili: $2.',
     browserNotInstalled: '$1 non è installato.',
     cannotOpenPage: 'Impossibile aprire una pagina in $1.',
+    missingValue: 'Valore mancante per $1.',
+    docSlidesConflict: 'Usa --doc oppure --slides, non entrambi.',
   },
 };
 

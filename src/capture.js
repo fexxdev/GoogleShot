@@ -1,4 +1,5 @@
 import { sleep } from './util.js';
+import { cleanTitle } from '../shared/filename.js';
 import { t } from './i18n.js';
 import {
   DOC_EDITOR_SELECTOR,
@@ -82,6 +83,10 @@ async function docCapturePage(page, number, quality) {
     const image = await page.screenshot({
       type: 'jpeg',
       quality,
+      // CSS pixels: the slice bitmap then matches the page geometry 1:1 and
+      // the tile scale below applies uniformly. Without this the bitmap is in
+      // device pixels and the composed page is stretched.
+      scale: 'css',
       clip: {
         x: slice.x,
         y: slice.clipTop + skip,
@@ -116,7 +121,13 @@ async function docCapturePage(page, number, quality) {
         const image = new Image();
         image.src = `data:image/jpeg;base64,${part.image}`;
         await image.decode();
-        ctx.drawImage(image, 0, Math.round((part.offset - anchor) * scale), canvas.width, image.height);
+        ctx.drawImage(
+          image,
+          0,
+          Math.round((part.offset - anchor) * scale),
+          canvas.width,
+          Math.round(image.height * scale)
+        );
       }
       return canvas.toDataURL('image/jpeg', jpegQuality / 100).split(',')[1];
     },
@@ -131,7 +142,6 @@ export async function captureDocument(
   { onProgress = () => {}, quality = 90 } = {}
 ) {
   const page = await context.newPage();
-  let succeeded = false;
   try {
     await page.goto(`https://docs.google.com/document/d/${documentId}/edit`, {
       waitUntil: 'domcontentloaded',
@@ -140,9 +150,7 @@ export async function captureDocument(
     if (page.url().includes('accounts.google.com')) {
       throw new Error(t('loginRequired'));
     }
-    const title = (await page.title())
-      .replace(/\s*-\s*(Documenti Google|Google Docs)\s*$/i, '')
-      .trim();
+    const title = cleanTitle(await page.title(), documentId);
     await page.locator(DOC_PAGE_SELECTOR).first().waitFor({ state: 'visible', timeout: 60000 });
     await page.evaluate(() => document.fonts.ready);
     await sleep(1000);
@@ -163,14 +171,16 @@ export async function captureDocument(
     };
     remember(await page.evaluate(collectDocPages));
     const scrollHeight = await editor.evaluate((element) => element.scrollHeight);
+    const clientHeight = await editor.evaluate((element) => element.clientHeight);
+    const step = Math.max(DOC_SCROLL_STEP, Math.floor(clientHeight * 0.8));
     let position = 0;
     let guard = 0;
     while (position < scrollHeight && guard < 2000) {
       guard += 1;
       await page.evaluate(docScrollToPosition, position);
-      await sleep(350);
+      await sleep(300);
       remember(await page.evaluate(collectDocPages));
-      position += DOC_SCROLL_STEP;
+      position += step;
     }
     if (byIndex.size === 0) {
       throw new Error(t('noPages'));
@@ -207,12 +217,9 @@ export async function captureDocument(
     if (pages.length === 0) {
       throw new Error(t('noPages'));
     }
-    succeeded = true;
     return { title: title || documentId, items: pages };
   } finally {
-    if (succeeded) {
-      await page.close();
-    }
+    await page.close().catch(() => {});
   }
 }
 
@@ -222,7 +229,6 @@ export async function capturePresentation(
   { onProgress = () => {}, quality = 90 } = {}
 ) {
   const page = await context.newPage();
-  let succeeded = false;
   try {
     await page.goto(`https://docs.google.com/presentation/d/${presentationId}/edit`, {
       waitUntil: 'domcontentloaded',
@@ -231,9 +237,7 @@ export async function capturePresentation(
     if (page.url().includes('accounts.google.com')) {
       throw new Error(t('loginRequired'));
     }
-    const title = (await page.title())
-      .replace(/\s*-\s*(Presentazioni Google|Google Slides)\s*$/i, '')
-      .trim();
+    const title = cleanTitle(await page.title(), presentationId);
     await page.locator(CANVAS_SELECTOR).first().waitFor({ state: 'visible', timeout: 60000 });
     await setZoomTo100(page);
     const strip = await page.locator(FILMSTRIP_SELECTOR).first().boundingBox();
@@ -283,11 +287,8 @@ export async function capturePresentation(
     if (slides.length === 0) {
       throw new Error(t('noSlides'));
     }
-    succeeded = true;
     return { title: title || presentationId, items: slides };
   } finally {
-    if (succeeded) {
-      await page.close();
-    }
+    await page.close().catch(() => {});
   }
 }

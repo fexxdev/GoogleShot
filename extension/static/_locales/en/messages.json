@@ -345,6 +345,66 @@
   "optionsNavHistory": {
     "message": "History"
   },
+  "errInvalidRange": {
+    "message": "Invalid page range. Example: 1-5,8."
+  },
+  "optionsDefaultsTitle": {
+    "message": "Defaults"
+  },
+  "optionsDefaultsDesc": {
+    "message": "The popup uses these values for every capture and export."
+  },
+  "optionsDefaultTool": {
+    "message": "Preferred tool"
+  },
+  "optionsToolAuto": {
+    "message": "Detect the site automatically"
+  },
+  "optionsToolDocs": {
+    "message": "Docs and Slides"
+  },
+  "optionsToolGmail": {
+    "message": "Gmail"
+  },
+  "optionsHistoryTitle": {
+    "message": "Export history"
+  },
+  "optionsHistoryDesc": {
+    "message": "The last 50 captures and exports."
+  },
+  "optionsHistoryEmpty": {
+    "message": "No exports yet."
+  },
+  "optionsGmailTitle": {
+    "message": "Gmail defaults"
+  },
+  "optionsGmailDesc": {
+    "message": "The popup and the right-click export use these Gmail values."
+  },
+  "optionsClearHistory": {
+    "message": "Clear history"
+  },
+  "colWhen": {
+    "message": "When"
+  },
+  "colTool": {
+    "message": "Tool"
+  },
+  "colTitle": {
+    "message": "Title"
+  },
+  "colFormat": {
+    "message": "Format"
+  },
+  "colItems": {
+    "message": "Items"
+  },
+  "toolCapture": {
+    "message": "Docs / Slides"
+  },
+  "toolGmail": {
+    "message": "Gmail"
+  },
   "docsMenuCapture": {
     "message": "Capture this as PDF"
   },

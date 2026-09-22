@@ -1,4 +1,9 @@
 (() => {
+  // The background script asks before injecting, but a second injection must
+  // never pile up another message listener.
+  if (window.__googleshotGmail) {
+    return;
+  }
   window.__googleshotGmail = true;
 
   let debugEnabled = false;

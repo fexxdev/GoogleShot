@@ -1,4 +1,7 @@
 import { t } from './i18n.js';
+import { sanitizeFilename as cleanName } from '../shared/filename.js';
+
+export { cleanTitle } from '../shared/filename.js';
 
 export function parseSlidesId(input) {
   if (!input) {
@@ -33,12 +36,7 @@ export function isDocSource(input) {
 }
 
 export function sanitizeFilename(name) {
-  const cleaned = (name || 'presentation')
-    .replace(/[/\\:*?"<>|]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-  return cleaned || 'presentation';
+  return cleanName(name, 'presentation');
 }
 
 export function sleep(ms) {

@@ -172,7 +172,9 @@ async function quitBrowser(browser) {
     } else if (process.platform === 'win32') {
       execFileSync('taskkill', ['/IM', processNameFor(browser)]);
     } else {
-      execFileSync('pkill', ['-f', processNameFor(browser)]);
+      // Match the full executable path, not just the basename: a bare
+      // `pkill -f chrome` could kill unrelated Chromium processes.
+      execFileSync('pkill', ['-f', browser.executablePath || processNameFor(browser)]);
     }
   } catch {
     return;
@@ -234,7 +236,22 @@ export async function ensureDebugBrowser(browser, { restart = false } = {}) {
 export async function connectBrowser(browser, options = {}) {
   const endpoint = await ensureDebugBrowser(browser, options);
   const browserServer = await chromium.connectOverCDP(endpoint);
-  const context = browserServer.contexts()[0];
+  const contexts = browserServer.contexts();
+  let context = contexts[0];
+  // With several windows or profiles the first context may not hold the
+  // Google session: prefer one that does.
+  if (contexts.length > 1) {
+    for (const candidate of contexts) {
+      try {
+        if (await hasGoogleSession(candidate)) {
+          context = candidate;
+          break;
+        }
+      } catch {
+        // unreadable context: keep looking
+      }
+    }
+  }
   if (!context) {
     throw new Error(t('cannotOpenPage', browser.label));
   }

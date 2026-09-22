@@ -58,6 +58,8 @@ const elements = {
 
 const FALLBACK = {
   statusReady: 'Ready.',
+  statusStarting: 'Starting...',
+  statusFailed: 'Failed',
   popupSiteDocs: 'Google Docs',
   popupSiteSlides: 'Google Slides',
   popupSiteGmail: 'Gmail',
@@ -247,6 +249,8 @@ function applySite(site) {
   elements.gmailFields.hidden = !isGmail;
 
   if (isDocs) {
+    elements.docsTitle.textContent =
+      site === 'slides' ? strings.popupSiteSlides : strings.popupSiteDocs;
     elements.docsDesc.textContent =
       site === 'docs' ? strings.popupHintDocs : strings.popupHintSlides;
   }
@@ -283,9 +287,28 @@ async function refresh() {
   const status = await loadStrings();
   applyStrings();
 
+  const values = await chrome.storage.local.get({
+    preferredTool: 'auto',
+    imageFolder: false,
+    quality: 90,
+    range: '',
+    speed: 'normal',
+    filename: '',
+    format: 'mbox',
+    limit: '',
+    attachmentsOnly: false,
+    debug: false,
+  });
+
   const tab = await activeTab();
   const url = tab ? tab.url : '';
-  const site = forcedSite || detectSite(url);
+  const detected = forcedSite || detectSite(url);
+  // The options page "preferred tool" only matters where detection finds
+  // nothing: it decides which card an unsupported page shows.
+  const site =
+    detected === 'other' && (values.preferredTool === 'docs' || values.preferredTool === 'gmail')
+      ? values.preferredTool
+      : detected;
   gsLog('refresh-start', { version, site, url: url && url.slice(0, 60) });
   applySite(site);
 
@@ -310,20 +333,14 @@ async function refresh() {
     // ignore
   }
 
-  const values = await chrome.storage.local.get({
-    preferredTool: 'auto',
-    imageFolder: false,
-    quality: 90,
-    range: '',
-    speed: 'normal',
-    filename: '',
-    debug: false,
-  });
   elements.images.checked = Boolean(values.imageFolder);
   elements.quality.value = String(values.quality);
   elements.range.value = values.range;
   elements.speed.value = values.speed;
   elements.filename.value = values.filename;
+  elements.format.value = values.format || 'mbox';
+  elements.limit.value = values.limit || '';
+  elements.attachmentsOnly.checked = Boolean(values.attachmentsOnly);
   elements.debug.checked = Boolean(values.debug);
   syncLogsVisibility();
 }

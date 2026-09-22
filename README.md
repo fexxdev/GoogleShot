@@ -61,6 +61,7 @@ Then capture:
 ```sh
 gshot c "https://docs.google.com/document/d/<id>/edit"
 gshot c "https://docs.google.com/presentation/d/<id>/edit"
+gshot c <id> --doc    # a bare ID is assumed to be a presentation, unless --doc
 gshot l        # check the Google session
 gshot b        # start the debug browser
 ```
@@ -68,6 +69,8 @@ gshot b        # start the debug browser
 `gshot` is a short alias of `googleshot`. Commands: `c` = capture, `l` = login, `b` = browser.
 
 The CLI reads the cookies from the debug browser, uses them in memory and never writes a cookie file.
+
+Captured images go to `<title>_pages` (Docs) or `<title>_slides` (Slides): previous `page-NNN.jpg` / `slide-NNN.jpg` files are overwritten, anything else in the folder is kept.
 
 ## Privacy
 
@@ -78,6 +81,7 @@ GoogleShot has no backend. It reads the page you ask for, builds the file locall
 ```sh
 npm test          # unit tests
 npm run build     # build the extension into extension/
+npm run release   # bump the patch version, then build
 ```
 
 Layout:
@@ -88,7 +92,7 @@ Layout:
 - `shared/` — geometry helpers used by both
 - `test/` — unit tests
 
-Every `npm run build` bumps the extension version, so you always know which build is loaded.
+Every `npm run release` bumps the extension version, so you always know which build is loaded. Plain `npm run build` never touches the version.
 
 ## License
 

@@ -9,6 +9,7 @@ import {
   slideIdFromHash,
   slideThumbId,
 } from '../../shared/doc.js';
+import { cleanTitle } from '../../shared/filename.js';
 
 (() => {
   if (window.__googleshotChannel) {
@@ -38,11 +39,7 @@ import {
   const isDoc = () => location.pathname.startsWith('/document/d/');
   const isSlides = () => location.pathname.startsWith('/presentation/d/');
 
-  const pageTitle = () =>
-    document.title
-      .replace(/\s*-\s*(Documenti Google|Google Docs)\s*$/i, '')
-      .replace(/\s*-\s*(Presentazioni Google|Google Slides)\s*$/i, '')
-      .trim();
+  const pageTitle = () => cleanTitle(document.title);
 
   let toolbar = null;
 
@@ -144,7 +141,7 @@ import {
 
   async function docScrollTo(value) {
     docScrollToPosition(value);
-    await sleep(350);
+    await sleep(300);
   }
 
   async function docDiscoverPages() {
@@ -160,8 +157,11 @@ import {
     };
     collect();
     const limit = editor.scrollHeight;
+    // Scroll in viewport-sized steps instead of fixed 400px: discovery is
+    // ~3x faster on tall viewports and just as reliable.
+    const step = Math.max(DOC_SCROLL_STEP, Math.floor(editor.clientHeight * 0.8));
     let count = 0;
-    for (let position = 0; position <= limit; position += DOC_SCROLL_STEP) {
+    for (let position = 0; position <= limit; position += step) {
       await docScrollTo(position);
       collect();
       count += 1;
@@ -250,9 +250,6 @@ import {
       throw new Error('Open a Google Doc or a Google Slides deck first.');
     }
     if (method === 'pages') {
-      if (args.strings) {
-        Object.assign(strings, args.strings);
-      }
       if (isDoc()) {
         const pages = await docDiscoverPages();
         show(strings.pagesFound(pages.length), 0);

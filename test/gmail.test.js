@@ -144,7 +144,8 @@ test('buildXml is valid and escapes the content', async () => {
 test('buildCsv produces a header and one row per message', async () => {
   const entries = await collected();
   const csv = buildCsv(entries);
-  const lines = csv.split('\n');
+  assert.equal(csv.charCodeAt(0), 0xfeff);
+  const lines = csv.slice(1).split('\n');
   assert.match(lines[0], /^date,from,to,cc,subject,attachments,body$/);
   assert.match(lines[1], /aiuti-2025\.pdf/);
   assert.match(lines[1], /"Ciao Ragazzi,/);

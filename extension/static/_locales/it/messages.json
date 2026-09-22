@@ -345,6 +345,66 @@
   "optionsNavHistory": {
     "message": "Cronologia"
   },
+  "errInvalidRange": {
+    "message": "Intervallo di pagine non valido. Esempio: 1-5,8."
+  },
+  "optionsDefaultsTitle": {
+    "message": "Predefiniti"
+  },
+  "optionsDefaultsDesc": {
+    "message": "La popup usa questi valori per ogni cattura ed esportazione."
+  },
+  "optionsDefaultTool": {
+    "message": "Strumento preferito"
+  },
+  "optionsToolAuto": {
+    "message": "Rileva il sito automaticamente"
+  },
+  "optionsToolDocs": {
+    "message": "Documenti e Presentazioni"
+  },
+  "optionsToolGmail": {
+    "message": "Gmail"
+  },
+  "optionsHistoryTitle": {
+    "message": "Cronologia esportazioni"
+  },
+  "optionsHistoryDesc": {
+    "message": "Le ultime 50 catture ed esportazioni."
+  },
+  "optionsHistoryEmpty": {
+    "message": "Ancora nessuna esportazione."
+  },
+  "optionsGmailTitle": {
+    "message": "Predefiniti Gmail"
+  },
+  "optionsGmailDesc": {
+    "message": "La popup e l'esportazione dal menu usano questi valori Gmail."
+  },
+  "optionsClearHistory": {
+    "message": "Cancella cronologia"
+  },
+  "colWhen": {
+    "message": "Quando"
+  },
+  "colTool": {
+    "message": "Strumento"
+  },
+  "colTitle": {
+    "message": "Titolo"
+  },
+  "colFormat": {
+    "message": "Formato"
+  },
+  "colItems": {
+    "message": "Elementi"
+  },
+  "toolCapture": {
+    "message": "Documenti / Presentazioni"
+  },
+  "toolGmail": {
+    "message": "Gmail"
+  },
   "docsMenuCapture": {
     "message": "Cattura in PDF"
   },

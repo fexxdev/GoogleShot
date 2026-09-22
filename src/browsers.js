@@ -167,6 +167,9 @@ export function resolveBrowser(id) {
     } catch {
       executablePath = null;
     }
+    if (!executablePath) {
+      throw new Error(t('browserNotInstalled', definition.label));
+    }
   } else {
     executablePath = findExecutable(definition);
   }

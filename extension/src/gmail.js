@@ -47,6 +47,28 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
+function decodeRfc2231(value) {
+  const match = String(value || '').match(/^(?:[^']*'[^']*')?(.*)$/);
+  try {
+    return decodeURIComponent(match ? match[1] : value);
+  } catch {
+    return value;
+  }
+}
+
+function attachmentFilename(headers) {
+  const direct = headers.match(/filename="([^"]+)"/);
+  if (direct) {
+    return direct[1];
+  }
+  // RFC 2231 encoded filenames: filename*=utf-8''%E2%82%ACrates.pdf
+  const encoded = headers.match(/filename\*\s*=\s*([^\s;]+)/i);
+  if (encoded) {
+    return decodeRfc2231(encoded[1].replace(/^"|"$/g, ''));
+  }
+  return null;
+}
+
 function splitHeaderBody(part) {
   const index = part.indexOf('\n\n');
   if (index === -1) {
@@ -81,12 +103,15 @@ export function mergeAttachments(message, attachmentData) {
 
 export function toMboxEntry(message) {
   const normalized = message.replace(/\r\n/g, '\n').replace(/\n+$/, '\n');
-  const fromMatch = normalized.match(/^From:\s*(.+)$/m);
-  const dateMatch = normalized.match(/^Date:\s*(.+)$/m);
+  // mboxrd: a body line starting with "From " must be escaped, or readers
+  // split one message into two at that line.
+  const escaped = normalized.replace(/^From /gm, '>From ');
+  const fromMatch = escaped.match(/^From:\s*(.+)$/m);
+  const dateMatch = escaped.match(/^Date:\s*(.+)$/m);
   const sender = fromMatch ? fromMatch[1].trim() : 'nobody@example.com';
   const date = dateMatch ? dateMatch[1].trim() : new Date().toUTCString();
-  const separator = /^From .*\n/.test(normalized) ? '' : `From ${sender} ${date}\n`;
-  return `${separator}${normalized}\n`;
+  const separator = /^From .*\n/.test(escaped) ? '' : `From ${sender} ${date}\n`;
+  return `${separator}${escaped}\n`;
 }
 
 function entryRaw(entry) {
@@ -197,7 +222,8 @@ export function buildCsv(entries) {
       entry.body,
     ]);
   }
-  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  // BOM: without it Excel opens the UTF-8 accented text as mojibake.
+  return `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\n')}`;
 }
 
 export function buildHtml(entries) {
@@ -463,14 +489,14 @@ export function mimeParts(message) {
     }
     const headers = chunk.slice(0, index);
     const body = chunk.slice(index + 2);
-    const filenameMatch = headers.match(/filename="([^"]+)"/);
-    if (!filenameMatch) {
+    const filename = attachmentFilename(headers);
+    if (!filename) {
       continue;
     }
     const contentType = headers.match(/Content-Type:\s*([^\s;]+)/i);
     const encoding = headers.match(/Content-Transfer-Encoding:\s*(\S+)/i);
     parts.push({
-      filename: filenameMatch[1],
+      filename,
       mimeType: contentType ? contentType[1] : 'application/octet-stream',
       base64: /base64/i.test(encoding ? encoding[1] : '')
         ? body.replace(/[^A-Za-z0-9+/=]/g, '')
@@ -482,8 +508,7 @@ export function mimeParts(message) {
 
 export async function collectThread({ ik, authuser = 0, messages, fetchText, fetchBytes, onProgress }) {
   const entries = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
+  for (let index = 0; index < messages.length; index += 1) {    const message = messages[index];
     const url = originalMessageUrl({ authuser, ik, permmsgid: message.id });
     const html = await fetchText(url);
     let original = null;
@@ -531,6 +556,9 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
       onProgress(index + 1, messages.length);
     }
   }
+  // Messages without an "original" block (drafts, some system types) are
+  // skipped silently by the loop above: expose the count so callers can warn.
+  entries.skipped = messages.length - entries.length;
   return entries;
 }
 

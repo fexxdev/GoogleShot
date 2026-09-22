@@ -7,6 +7,7 @@ import {
   buildText,
   buildThreadsZip,
 } from './gmail.js';
+import { sanitizeFilename } from '../../shared/filename.js';
 import { log, error, getLogs, setDebug } from './log.js';
 
 const GMAIL_URL_PATTERNS = ['https://mail.google.com/*'];
@@ -66,6 +67,7 @@ function buildStrings() {
     pageCapture: (number) => t('errPageCapture', number),
     slideOpen: (number) => t('errSlideOpen', number),
     noActiveTab: t('errNoActiveTab'),
+    invalidRange: t('errInvalidRange'),
     gmailReading: t('gmailReading'),
     gmailFetching: (current, total) => t('gmailFetching', current, total),
     gmailAttachments: (current, total) => t('gmailAttachments', current, total),
@@ -116,9 +118,36 @@ function buildStrings() {
     optionsNavGmail: t('optionsNavGmail'),
     optionsNavHistory: t('optionsNavHistory'),
     statusReady: t('statusReady'),
+    statusStarting: t('statusStarting'),
+    statusFailed: t('statusFailed'),
     statusCancelling: t('statusCancelling'),
     statusCancelled: t('statusCancelled'),
     popupCancel: t('popupCancel'),
+    popupGmailAttachments: t('popupGmailAttachments'),
+    popupGmailLimit: t('popupGmailLimit'),
+    popupGmailLimitPlaceholder: t('popupGmailLimitPlaceholder'),
+    popupGmailCopy: t('popupGmailCopy'),
+    popupGmailBatch: t('popupGmailBatch'),
+    popupCopiedThread: t('popupCopiedThread'),
+    optionsDefaultsTitle: t('optionsDefaultsTitle'),
+    optionsDefaultsDesc: t('optionsDefaultsDesc'),
+    optionsDefaultTool: t('optionsDefaultTool'),
+    optionsToolAuto: t('optionsToolAuto'),
+    optionsToolDocs: t('optionsToolDocs'),
+    optionsToolGmail: t('optionsToolGmail'),
+    optionsHistoryTitle: t('optionsHistoryTitle'),
+    optionsHistoryDesc: t('optionsHistoryDesc'),
+    optionsHistoryEmpty: t('optionsHistoryEmpty'),
+    optionsGmailTitle: t('optionsGmailTitle'),
+    optionsGmailDesc: t('optionsGmailDesc'),
+    optionsClearHistory: t('optionsClearHistory'),
+    colWhen: t('colWhen'),
+    colTool: t('colTool'),
+    colTitle: t('colTitle'),
+    colFormat: t('colFormat'),
+    colItems: t('colItems'),
+    toolCapture: t('toolCapture'),
+    toolGmail: t('toolGmail'),
     gmailMenuExport: t('gmailMenuExport'),
     docsMenuCapture: t('docsMenuCapture'),
   };
@@ -156,39 +185,6 @@ function blobToDataUrl(blob) {
     reader.onerror = () => reject(new Error('Cannot read the file.'));
     reader.readAsDataURL(blob);
   });
-}
-
-function decodeMimeWord(value) {
-  return String(value || '').replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (match, charset, encoding, text) => {
-    try {
-      if (encoding.toUpperCase() === 'B') {
-        const bytes = Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
-        return new TextDecoder(charset).decode(bytes);
-      }
-      const bytes = [];
-      const normalized = text.replace(/_/g, ' ');
-      for (let index = 0; index < normalized.length; index += 1) {
-        if (normalized[index] === '=' && index + 2 < normalized.length) {
-          bytes.push(parseInt(normalized.slice(index + 1, index + 3), 16));
-          index += 2;
-        } else {
-          bytes.push(normalized.charCodeAt(index));
-        }
-      }
-      return new TextDecoder(charset).decode(Uint8Array.from(bytes));
-    } catch {
-      return match;
-    }
-  });
-}
-
-function sanitizeFilename(name) {
-  const cleaned = (name || 'gmail-thread')
-    .replace(/[/\\:*?"<>|]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-  return cleaned || 'gmail-thread';
 }
 
 async function fetchTextInPage(tabId, url) {
@@ -246,19 +242,29 @@ async function fetchBytesInExtension(url) {
   return new Uint8Array(buffer);
 }
 
-async function gmailAuth(tabId) {
+async function sendGmailMessage(tabId, message) {
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['gmail-content.js'] });
-    log('gmail:content-injected', { tabId });
+    return await chrome.tabs.sendMessage(tabId, message);
   } catch (err) {
-    log('gmail:content-already-there', { tabId, reason: err && err.message });
+    log('gmail:message-failed', { tabId, method: message.method, reason: err && err.message });
+    return null;
   }
-  const response = await chrome.tabs
-    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'auth' })
-    .catch((err) => {
-      log('gmail:auth-message-failed', { tabId, reason: err && err.message });
-      return null;
-    });
+}
+
+async function gmailAuth(tabId) {
+  // The content script is already declared in the manifest, so in most cases
+  // it is there: ask first and inject only when nobody answers. Injecting on
+  // every export used to pile up duplicate message listeners.
+  let response = await sendGmailMessage(tabId, { target: 'googleshot-gmail', method: 'auth' });
+  if (!response || !response.ok) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ['gmail-content.js'] });
+      log('gmail:content-injected', { tabId });
+    } catch (err) {
+      log('gmail:content-already-there', { tabId, reason: err && err.message });
+    }
+    response = await sendGmailMessage(tabId, { target: 'googleshot-gmail', method: 'auth' });
+  }
   log('gmail:auth-response', { tabId, ok: response && response.ok, result: response && response.result });
   if (!response || !response.ok || !response.result) {
     throw new Error(buildStrings().gmailNotThread);
@@ -308,10 +314,13 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
   if (!blocks.length) {
     throw new Error(strings.gmailNotThread);
   }
+  if (blocks.skipped) {
+    log('gmail:skipped', { skipped: blocks.skipped });
+  }
 
   setState({ message: strings.gmailBuilding, percent: 90 });
   const title = blocks[0].subject || 'gmail-thread';
-  const safeTitle = sanitizeFilename(title);
+  const safeTitle = sanitizeFilename(title, 'gmail-thread');
 
   if (attachmentsOnly) {
     const total = blocks.reduce((sum, entry) => sum + entry.attachments.length, 0);
@@ -341,7 +350,27 @@ async function exportGmailThread(tabId, requestedFormat, options = {}) {
   await chrome.downloads.download({ url, filename });
   log('gmail:download-started', { filename });
   setState({ message: strings.gmailDone(blocks.length), percent: 100 });
+  recordHistory({
+    action: 'gmail',
+    title: safeTitle,
+    format: formatName,
+    count: blocks.length,
+  });
   return { ok: true, count: blocks.length, title: safeTitle };
+}
+
+async function waitForThread(tabId, threadId, timeout = 10000) {
+  const start = Date.now();
+  for (;;) {
+    const auth = await gmailAuth(tabId).catch(() => null);
+    if (auth && auth.threadId === threadId) {
+      return;
+    }
+    if (Date.now() - start > timeout) {
+      throw new Error(buildStrings().gmailNotThread);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
 }
 
 async function openThreadInPage(tabId, threadId) {
@@ -353,7 +382,9 @@ async function openThreadInPage(tabId, threadId) {
     },
     args: [threadId],
   });
-  await new Promise((resolve) => setTimeout(resolve, 1800));
+  // A fixed sleep used to race slow networks and read the previous thread's
+  // messages. Wait until the page reports the thread we asked for.
+  await waitForThread(tabId, threadId);
 }
 
 async function exportGmailBatch(tabId, options = {}) {
@@ -397,7 +428,7 @@ async function exportGmailBatch(tabId, options = {}) {
       fetchBytes: (url) => fetchBytesInExtension(url),
     });
     if (blocks.length) {
-      let name = sanitizeFilename(blocks[0].subject || thread.subject || thread.threadId);
+      let name = sanitizeFilename(blocks[0].subject || thread.subject || thread.threadId, 'gmail-thread');
       let counter = 2;
       while (Object.prototype.hasOwnProperty.call(files, `${name}.${format.extension}`)) {
         name = `${name}-${counter}`;
@@ -427,28 +458,41 @@ async function exportGmailBatch(tabId, options = {}) {
 }
 
 async function copyGmailThread(tabId) {
+  if (state.running) {
+    return { ok: false, error: t('statusAlreadyRunning') };
+  }
+  resetCancel();
+  state.running = true;
+  state.action = 'gmail';
+  state.tabId = tabId;
+  state.error = null;
   const strings = buildStrings();
-  const { threadId, account, ik, authuser } = await gmailAuth(tabId);
-  if (!threadId) {
-    throw new Error(strings.gmailNotThread);
+  try {
+    const { threadId, account, ik, authuser } = await gmailAuth(tabId);
+    if (!threadId) {
+      throw new Error(strings.gmailNotThread);
+    }
+    const messages = await chrome.tabs
+      .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
+      .then((response) => (response && response.ok ? response.result : null))
+      .catch(() => null);
+    if (!messages || messages.length === 0) {
+      throw new Error(strings.gmailNotThread);
+    }
+    setState({ action: 'gmail', message: strings.gmailReading, percent: 30 });
+    const blocks = await collectThread({
+      ik,
+      authuser,
+      messages,
+      fetchText: (url) => fetchTextInPage(tabId, url),
+      fetchBytes: (url) => fetchBytesInExtension(url),
+    });
+    setState({ message: '', percent: 0 });
+    return { ok: true, text: buildText(blocks) };
+  } finally {
+    state.running = false;
+    broadcast();
   }
-  const messages = await chrome.tabs
-    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
-    .then((response) => (response && response.ok ? response.result : null))
-    .catch(() => null);
-  if (!messages || messages.length === 0) {
-    throw new Error(strings.gmailNotThread);
-  }
-  setState({ action: 'gmail', message: strings.gmailReading, percent: 30 });
-  const blocks = await collectThread({
-    ik,
-    authuser,
-    messages,
-    fetchText: (url) => fetchTextInPage(tabId, url),
-    fetchBytes: (url) => fetchBytesInExtension(url),
-  });
-  setState({ message: '', percent: 0 });
-  return { ok: true, text: buildText(blocks) };
 }
 
 async function runGmailBatch(tabId, options = {}) {
@@ -688,6 +732,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message.method === 'logs') {
+    // The popup and the options page report here with { popup: { step, data } }.
+    // A plain { method: 'logs' } is a request to read the logs back.
+    if (message.popup) {
+      log(`popup:${message.popup.step}`, message.popup.data);
+      sendResponse({ ok: true });
+      return true;
+    }
     sendResponse({ ok: true, logs: getLogs() });
     return true;
   }

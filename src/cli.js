@@ -17,7 +17,7 @@ import { t } from './i18n.js';
 const HELP = `GoogleShot - screenshot every slide of a Google Slides deck or every page of a Google Doc, then build a PDF.
 
 Usage:
-  googleshot capture <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
+  googleshot capture <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart] [--doc] [--slides]
   googleshot login [--browser <name>] [--restart]
   googleshot browser [--browser <name>] [--restart]
   googleshot <slides-url|doc-url|id> [-o <file.pdf>] [--images-dir <dir>] [--quality <1-100>] [--browser <name>] [--restart]
@@ -32,10 +32,17 @@ Commands:
 Options:
   -o, --output <file.pdf>   PDF path. Default: "<title>.pdf" in the current directory.
       --images-dir <dir>    Image folder. Default: "<title>_slides" for Slides, "<title>_pages" for Docs.
+                            Existing "<item>-NNN.jpg" files are overwritten, other files are kept.
       --quality <1-100>     JPEG quality of the images. Default: 90.
       --browser <name>      brave, chrome, msedge or chromium. If omitted, the tool asks.
       --restart             Restart the browser automatically when it is already open.
+      --doc                 Treat a bare ID as a Google Doc (default: Slides).
+      --slides              Treat a bare ID as Google Slides.
   -h, --help                Show this help.
+
+Notes:
+  A bare document ID is ambiguous (Docs and Slides IDs look the same), so it is
+  assumed to be a presentation unless --doc is given. Prefer the full URL.
 `;
 
 const COMMANDS = {
@@ -44,33 +51,45 @@ const COMMANDS = {
   b: 'browser',
 };
 
-export async function runCli(argv) {
+export async function runCli(argv, { exit = true } = {}) {
+  const quit = (code) => {
+    if (exit) {
+      process.exit(code);
+    }
+    return code;
+  };
   const [command, ...rest] = argv;
   if (!command || command === '-h' || command === '--help' || command === 'help') {
     console.log(HELP);
-    return;
+    return quit(0);
   }
   const name = COMMANDS[command] || command;
   if (name === 'browser') {
     await browserCommand(rest);
-    return;
+    return quit(0);
   }
   if (name === 'login') {
-    await loginCommand(rest);
-    return;
+    return quit(await loginCommand(rest));
   }
   if (name === 'capture') {
     await captureCommand(rest);
-    return;
+    return quit(0);
   }
   if (command.includes('docs.google.com') || command.startsWith('http')) {
     await captureCommand(argv);
-    return;
+    return quit(0);
   }
   throw new Error(`${t('unknownCommand', command)}\n\n${HELP}`);
 }
 
-function parseOptions(argv) {
+function takeValue(argv, index, flag) {
+  if (index + 1 >= argv.length) {
+    throw new Error(t('missingValue', flag));
+  }
+  return argv[index + 1];
+}
+
+export function parseOptions(argv) {
   const options = {
     source: null,
     output: null,
@@ -78,24 +97,37 @@ function parseOptions(argv) {
     quality: null,
     browser: null,
     restart: false,
+    doc: false,
+    slides: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '-o' || arg === '--output') {
-      options.output = argv[++index];
+      options.output = takeValue(argv, index, arg);
+      index += 1;
     } else if (arg === '--images-dir') {
-      options.imagesDir = argv[++index];
+      options.imagesDir = takeValue(argv, index, arg);
+      index += 1;
     } else if (arg === '--quality') {
-      options.quality = argv[++index];
+      options.quality = takeValue(argv, index, arg);
+      index += 1;
     } else if (arg === '--browser') {
-      options.browser = argv[++index];
+      options.browser = takeValue(argv, index, arg);
+      index += 1;
     } else if (arg === '--restart') {
       options.restart = true;
+    } else if (arg === '--doc') {
+      options.doc = true;
+    } else if (arg === '--slides') {
+      options.slides = true;
     } else if (!options.source) {
       options.source = arg;
     } else {
       throw new Error(`Unexpected argument: ${arg}`);
     }
+  }
+  if (options.doc && options.slides) {
+    throw new Error(t('docSlidesConflict'));
   }
   return options;
 }
@@ -157,35 +189,55 @@ async function browserCommand(argv) {
   }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
-  const { endpoint } = await connectWithRestart(browser, options);
-  console.log(t('browserReady', browser.label, endpoint));
-  process.exit(0);
+  const { browserServer, endpoint } = await connectWithRestart(browser, options);
+  try {
+    console.log(t('browserReady', browser.label, endpoint));
+  } finally {
+    await browserServer.close().catch(() => {});
+  }
 }
 
 async function loginCommand(argv) {
   if (wantsHelp(argv)) {
     console.log(HELP);
-    return;
+    return 0;
   }
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
-  const { context } = await connectWithRestart(browser, options);
-  if (await hasGoogleSession(context)) {
-    console.log(t('loginFound', browser.label));
-    process.exit(0);
+  const { browserServer, context } = await connectWithRestart(browser, options);
+  try {
+    if (await hasGoogleSession(context)) {
+      console.log(t('loginFound', browser.label));
+      return 0;
+    }
+    console.log(t('loginMissing', browser.label));
+    return 1;
+  } finally {
+    await browserServer.close().catch(() => {});
   }
-  console.log(t('loginMissing', browser.label));
-  process.exit(1);
 }
 
-function resolveSource(input) {
-  if (isDocSource(input)) {
-    return { kind: 'doc', id: parseDocId(input) };
-  }
+export function resolveSource(input, { doc = false, slides = false } = {}) {
   if (!input) {
     throw new Error(t('missingSource'));
   }
-  if (input.includes('/presentation/d/') || /^[a-zA-Z0-9_-]{20,}$/.test(input)) {
+  if (isDocSource(input)) {
+    return { kind: 'doc', id: parseDocId(input) };
+  }
+  if (input.includes('/presentation/d/')) {
+    return { kind: 'slides', id: parseSlidesId(input) };
+  }
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(input)) {
+    // Bare IDs are ambiguous: Docs and Slides IDs look the same.
+    if (doc) {
+      return { kind: 'doc', id: input };
+    }
+    return { kind: 'slides', id: parseSlidesId(input) };
+  }
+  if (doc) {
+    return { kind: 'doc', id: parseDocId(input) };
+  }
+  if (slides) {
     return { kind: 'slides', id: parseSlidesId(input) };
   }
   throw new Error(t('cannotFindSource', input));
@@ -197,13 +249,18 @@ async function captureCommand(argv) {
     return;
   }
   const options = parseOptions(argv);
-  const source = resolveSource(options.source);
+  const source = resolveSource(options.source, options);
   const quality = parseQuality(options.quality);
   const browser = await pickBrowser({ flag: options.browser });
 
   // cookies stay in memory only: read them from the live browser, then use them
-  const { context } = await connectWithRestart(browser, options);
-  const cookies = await readCookiesFromContext(context, browser.label);
+  const { browserServer, context } = await connectWithRestart(browser, options);
+  let cookies;
+  try {
+    cookies = await readCookiesFromContext(context, browser.label);
+  } finally {
+    await browserServer.close().catch(() => {});
+  }
   console.log(t('sessionCookies', cookies.length, browser.label));
 
   const { browser: headless, context: headlessContext } = await launchHeadless(cookies);
@@ -225,8 +282,19 @@ async function captureCommand(argv) {
   );
   const itemName = source.kind === 'doc' ? 'page' : 'slide';
 
-  await fs.rm(imagesDir, { recursive: true, force: true });
   await fs.mkdir(imagesDir, { recursive: true });
+  // Overwrite our own "<item>-NNN.jpg" files, keep everything else, and drop
+  // stale files from a previous longer capture. Never wipe the directory.
+  const stalePattern = new RegExp(`^${itemName}-\\d{3}\\.jpg$`);
+  try {
+    for (const entry of await fs.readdir(imagesDir)) {
+      if (stalePattern.test(entry)) {
+        await fs.rm(path.join(imagesDir, entry), { force: true });
+      }
+    }
+  } catch {
+    // readdir failed: mkdir above already threw if the directory is unusable
+  }
   for (let index = 0; index < result.items.length; index += 1) {
     const file = path.join(imagesDir, `${itemName}-${String(index + 1).padStart(3, '0')}.jpg`);
     await fs.writeFile(file, result.items[index]);
@@ -236,5 +304,4 @@ async function captureCommand(argv) {
   console.log(`\n${t('done', t(itemName === 'page' ? 'pagesCount' : 'slidesCount', result.items.length))}`);
   console.log(t('pdfPath', pdfPath));
   console.log(t('imagesPath', imagesDir));
-  process.exit(0);
 }
