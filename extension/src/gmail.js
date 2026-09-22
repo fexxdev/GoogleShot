@@ -17,11 +17,11 @@ export function unescapeHtml(value) {
   );
 }
 
-export function extractOriginalMessage(html) {
+export function extractOriginalMessage(html, label = '') {
   const source = String(html || '');
   const match = source.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   if (!match) {
-    throw new Error('The original message is not in the page.');
+    throw new Error(`No original message for ${label || 'a message'} (drafts and some message types have none).`);
   }
   const message = unescapeHtml(match[1]).replace(/\r\n/g, '\n').replace(/\n+$/, '\n');
   const separator = /^From .*\n/.test(message) ? '' : `From nobody@example.com\n`;
@@ -95,15 +95,23 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
   const entries = [];
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
-    const url = originalMessageUrl({ authuser, ik, permmsgid: `msg-f:${message.id}` });
+    const url = originalMessageUrl({ authuser, ik, permmsgid: message.id });
     const html = await fetchText(url);
-    const original = extractOriginalMessage(html);
-    const attachmentBase64 = [];
-    for (const attachment of message.attachments || []) {
-      const bytes = await fetchBytes(attachment.url);
-      attachmentBase64.push(bytesToBase64(bytes));
+    let original = null;
+    try {
+      original = extractOriginalMessage(html, message.id);
+    } catch {
+      // drafts and some message types have no "original" view: skip them
+      original = null;
     }
-    entries.push(mergeAttachments(original, attachmentBase64));
+    if (original) {
+      const attachmentBase64 = [];
+      for (const attachment of message.attachments || []) {
+        const bytes = await fetchBytes(attachment.url);
+        attachmentBase64.push(bytesToBase64(bytes));
+      }
+      entries.push(mergeAttachments(original, attachmentBase64));
+    }
     if (onProgress) {
       onProgress(index + 1, messages.length);
     }

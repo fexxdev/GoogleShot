@@ -91,11 +91,11 @@ test('collectThread stitches messages and their attachments', async () => {
     ik: 'ik1',
     authuser: 2,
     messages: [
-      { id: '111', attachments: [{ attid: '0.1', url: 'https://x/att1' }] },
-      { id: '222', attachments: [] },
+      { id: 'msg-f:111', attachments: [{ attid: '0.1', url: 'https://x/att1' }] },
+      { id: 'msg-a:222', attachments: [] },
     ],
     fetchText: async (url) => {
-      assert.match(url, /permmsgid=msg-f:(111|222)/);
+      assert.match(url, /permmsgid=msg-(f|a):(111|222)/);
       return html;
     },
     fetchBytes: async (url) => {

@@ -84,7 +84,7 @@
       }
       const permmsgid = parsed.searchParams.get('permmsgid') || '';
       const attid = parsed.searchParams.get('attid') || '';
-      const id = permmsgid.replace(/^msg-f:/, '');
+      const id = permmsgid.replace(/^#/, '');
       if (!id || !attid || !parsed.searchParams.get('view')?.startsWith('att')) {
         return;
       }
@@ -97,9 +97,10 @@
       }
     };
 
-    for (const element of document.querySelectorAll('[data-legacy-message-id]')) {
-      const id = element.getAttribute('data-legacy-message-id');
-      if (id && /^[0-9a-f]+$/.test(id) && !byId.has(id)) {
+    for (const element of document.querySelectorAll('[data-message-id]')) {
+      const raw = element.getAttribute('data-message-id') || '';
+      const id = raw.replace(/^#/, '');
+      if (id && /^msg-(f|a|r)/.test(id) && !byId.has(id)) {
         byId.set(id, { id, attachments: [] });
       }
     }
