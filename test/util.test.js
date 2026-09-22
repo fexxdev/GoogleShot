@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isDocSource, parseDocId, parseSlidesId, sanitizeFilename } from '../src/util.js';
-import { systemColorScheme } from '../src/browsers.js';
+import { systemColorScheme } from '../src/theme.js';
 
 test('parseDocId accepts a document URL', () => {
   const id = '1uby7lvQyJtnuIioLKNPHqoo_p2eR6YHN1l2h73CzZIc';

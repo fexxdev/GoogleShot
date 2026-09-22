@@ -126,39 +126,6 @@ function bundledChromiumRoots() {
   return [path.join(HOME, '.cache', 'ms-playwright')];
 }
 
-export function systemColorScheme() {
-  const override = process.env.GOOGLESHOT_COLOR_SCHEME;
-  if (override === 'dark' || override === 'light') {
-    return override;
-  }
-  try {
-    if (process.platform === 'darwin') {
-      const style = execFileSync('defaults', ['read', '-g', 'AppleInterfaceStyle'], {
-        stdio: ['ignore', 'pipe', 'ignore'],
-      })
-        .toString()
-        .trim();
-      return /dark/i.test(style) ? 'dark' : 'light';
-    }
-    if (process.platform === 'win32') {
-      const value = execFileSync(
-        'reg',
-        ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize', '/v', 'AppsUseLightTheme'],
-        { stdio: ['ignore', 'pipe', 'ignore'] }
-      ).toString();
-      return /0x0\s*$/m.test(value) ? 'dark' : 'light';
-    }
-    const value = execFileSync('gsettings', ['get', 'org.gnome.desktop.interface', 'color-scheme'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
-      .toString()
-      .trim();
-    return /dark/i.test(value) ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
-}
-
 function hasBundledChromium() {
   return bundledChromiumRoots().some((root) => {
     try {

@@ -26,7 +26,17 @@ await build({
   format: 'iife',
 });
 
-await fs.copyFile(path.join(root, 'extension/src/page.js'), path.join(outdir, 'page.js'));
+await build({
+  ...common,
+  entryPoints: [path.join(root, 'extension/src/page.js')],
+  outfile: path.join(outdir, 'page.js'),
+  banner: { js: '// Generated from extension/src/page.js. Do not edit.' },
+});
+
+await fs.copyFile(
+  path.join(root, 'extension/static/manifest.json'),
+  path.join(outdir, 'manifest.json')
+);
 await fs.copyFile(
   path.join(root, 'extension/static/popup.html'),
   path.join(outdir, 'popup.html')

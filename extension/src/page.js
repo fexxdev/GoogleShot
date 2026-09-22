@@ -1,12 +1,21 @@
+import {
+  DOC_EDITOR_SELECTOR,
+  DOC_PAGE_SELECTOR,
+  DOC_SCROLL_STEP,
+  collectDocPages,
+  docScrollByValue,
+  docScrollToPosition,
+  docSliceFor,
+  slideIdFromHash,
+  slideThumbId,
+} from '../../shared/doc.js';
+
 (() => {
   if (window.__googleshotChannel) {
     return;
   }
   window.__googleshotChannel = true;
 
-  const DOC_EDITOR = '.kix-appview-editor';
-  const DOC_TILES = '.kix-rotatingtilemanager';
-  const DOC_PAGE = '.kix-page-paginated';
   const SLIDE_CANVAS = '#canvas';
   const SLIDE_STRIP = '.punch-filmstrip-scroll';
 
@@ -103,42 +112,33 @@
   }
 
   async function docScrollTo(value) {
-    const editor = document.querySelector(DOC_EDITOR);
-    if (!editor) {
-      throw new Error('Cannot find the document editor.');
-    }
-    editor.scrollTop = Math.max(0, value);
+    docScrollToPosition(value);
     await sleep(350);
   }
 
-  function docCollect(seen) {
-    const tiles = document.querySelector(DOC_TILES);
-    const content = tiles ? tiles.querySelector('.kix-rotatingtilemanager-content') : null;
-    if (!tiles || !content) {
-      return;
-    }
-    const base = tiles.offsetTop + content.offsetTop;
-    for (const element of document.querySelectorAll(DOC_PAGE)) {
-      const index = Number(element.style.zIndex || 0);
-      if (!seen.has(index)) {
-        seen.set(index, Math.round(base + element.offsetTop));
-      }
-    }
-  }
-
   async function docDiscoverPages() {
-    const editor = await waitFor(DOC_EDITOR);
+    const editor = await waitFor(DOC_EDITOR_SELECTOR);
     const seen = new Map();
     await docScrollTo(0);
-    docCollect(seen);
+    const collect = () => {
+      for (const entry of collectDocPages()) {
+        if (!seen.has(entry.index)) {
+          seen.set(entry.index, entry.position);
+        }
+      }
+    };
+    collect();
     const limit = editor.scrollHeight;
     let count = 0;
-    for (let position = 0; position <= limit; position += 400) {
+    for (let position = 0; position <= limit; position += DOC_SCROLL_STEP) {
       await docScrollTo(position);
-      docCollect(seen);
+      collect();
       count += 1;
       if (count % 6 === 0) {
-        show(`Scanning the document... ${seen.size} pages found`, Math.min(95, (position / limit) * 100));
+        show(
+          `Scanning the document... ${seen.size} pages found`,
+          Math.min(95, (position / limit) * 100)
+        );
       }
     }
     await docScrollTo(0);
@@ -147,40 +147,8 @@
     );
   }
 
-  function docSlice(index) {
-    const editor = document.querySelector(DOC_EDITOR);
-    if (!editor) {
-      return null;
-    }
-    const editorRect = editor.getBoundingClientRect();
-    for (const element of document.querySelectorAll(DOC_PAGE)) {
-      if (Number(element.style.zIndex || 0) !== index) {
-        continue;
-      }
-      const rect = element.getBoundingClientRect();
-      const top = Math.max(rect.top, editorRect.top + 1, 0);
-      const bottom = Math.min(rect.bottom, editorRect.bottom - 1, window.innerHeight);
-      if (bottom <= top) {
-        return null;
-      }
-      const canvas = element.querySelector('canvas.kix-canvas-tile-content');
-      return {
-        x: rect.x,
-        width: rect.width,
-        height: rect.height,
-        scale: canvas && rect.width > 0 ? canvas.width / rect.width : window.devicePixelRatio || 1,
-        visibleTop: top - rect.top,
-        visibleHeight: bottom - top,
-        clipTop: top,
-        clientHeight: editor.clientHeight,
-      };
-    }
-    return null;
-  }
-
   async function docScrollBy(value) {
-    const editor = document.querySelector(DOC_EDITOR);
-    editor.scrollTop += value;
+    docScrollByValue(value);
     await sleep(500);
   }
 
@@ -190,23 +158,9 @@
     return canvas;
   }
 
-  function slideId() {
-    const match = location.hash.match(/slide=id\.([a-zA-Z0-9_-]+)/);
-    return match ? match[1] : null;
-  }
-
-  function slidesThumbId(thumbnail) {
-    const direct = thumbnail.getAttribute('data-slide-page-id');
-    if (direct) {
-      return direct;
-    }
-    const match = (thumbnail.getAttribute('aria-label') || '').match(/#slide=id\.([a-zA-Z0-9_-]+)/);
-    return match ? match[1] : null;
-  }
-
   function slidesCollectVisibleIds(ids) {
     for (const thumbnail of document.querySelectorAll('.punch-filmstrip-thumbnail')) {
-      const id = slidesThumbId(thumbnail);
+      const id = slideThumbId(thumbnail);
       if (id && !ids.includes(id)) {
         ids.push(id);
       }
@@ -236,7 +190,7 @@
     location.hash = `slide=id.${id}`;
     const start = Date.now();
     while (Date.now() - start < 10000) {
-      if (slideId() === id) {
+      if (slideIdFromHash() === id) {
         await sleep(450);
         return true;
       }
@@ -252,10 +206,13 @@
   }
 
   async function handler(method, args) {
+    if (method === 'colorScheme') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
     if (method === 'describe') {
       if (isDoc()) {
-        await waitFor(DOC_PAGE);
-        await waitFor(DOC_EDITOR);
+        await waitFor(DOC_PAGE_SELECTOR);
+        await waitFor(DOC_EDITOR_SELECTOR);
         return { kind: 'doc', title: pageTitle() };
       }
       if (isSlides()) {
@@ -275,10 +232,10 @@
       return { kind: 'slides', slides: ids.map((id, index) => ({ index, id })) };
     }
     if (method === 'docSlice') {
-      return docSlice(Number(args.index));
+      return docSliceFor(Number(args.index));
     }
     if (method === 'docScrollTo') {
-      await docScrollTo(Number(args.value));
+      docScrollToPosition(Number(args.value));
       return true;
     }
     if (method === 'docScrollBy') {

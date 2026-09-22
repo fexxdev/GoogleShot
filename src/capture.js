@@ -1,11 +1,17 @@
 import { sleep } from './util.js';
+import {
+  DOC_EDITOR_SELECTOR,
+  DOC_PAGE_SELECTOR,
+  DOC_SCROLL_STEP,
+  collectDocPages,
+  docPageElementFor,
+  docScrollByValue,
+  docScrollToPosition,
+  docSliceFor,
+} from '../shared/doc.js';
 
 const CANVAS_SELECTOR = '#canvas';
 const FILMSTRIP_SELECTOR = '.punch-filmstrip-scroll';
-const DOC_EDITOR_SELECTOR = '.kix-appview-editor';
-const DOC_TILES_SELECTOR = '.kix-rotatingtilemanager';
-const DOC_PAGE_SELECTOR = '.kix-page-paginated';
-const DOC_SCROLL_STEP = 400;
 
 async function currentSlideId(page) {
   const match = page.url().match(/#slide=id\.([a-zA-Z0-9_-]+)/);
@@ -46,94 +52,8 @@ async function setZoomTo100(page) {
   }
 }
 
-async function docPagePositions(page) {
-  return page.evaluate(
-    ({ tilesSelector, pageSelector }) => {
-      const tiles = document.querySelector(tilesSelector);
-      const content = tiles?.querySelector('.kix-rotatingtilemanager-content');
-      if (!tiles || !content) {
-        return [];
-      }
-      const base = tiles.offsetTop + content.offsetTop;
-      return Array.from(document.querySelectorAll(pageSelector)).map((element) => ({
-        index: Number(element.style.zIndex || 0),
-        position: Math.round(base + element.offsetTop),
-      }));
-    },
-    { tilesSelector: DOC_TILES_SELECTOR, pageSelector: DOC_PAGE_SELECTOR }
-  );
-}
-
-async function docPageElement(page, number) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const domIndex = await page.evaluate(
-      ({ pageSelector, wanted }) => {
-        const pages = Array.from(document.querySelectorAll(pageSelector));
-        let best = -1;
-        let bestDistance = Infinity;
-        for (let index = 0; index < pages.length; index += 1) {
-          if (Number(pages[index].style.zIndex || 0) !== wanted) {
-            continue;
-          }
-          const rect = pages[index].getBoundingClientRect();
-          if (rect.bottom < 0 || rect.top > window.innerHeight) {
-            continue;
-          }
-          const distance = Math.abs(rect.top - 150);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = index;
-          }
-        }
-        return best;
-      },
-      { pageSelector: DOC_PAGE_SELECTOR, wanted: number }
-    );
-    if (domIndex !== -1) {
-      return page.locator(DOC_PAGE_SELECTOR).nth(domIndex);
-    }
-    await sleep(400);
-  }
-  return null;
-}
-
-async function docSlice(page, number) {
-  return page.evaluate(
-    ({ editorSelector, pageSelector, wanted }) => {
-      const editor = document.querySelector(editorSelector);
-      if (!editor) {
-        return null;
-      }
-      const editorRect = editor.getBoundingClientRect();
-      for (const element of document.querySelectorAll(pageSelector)) {
-        if (Number(element.style.zIndex || 0) !== wanted) {
-          continue;
-        }
-        const rect = element.getBoundingClientRect();
-        const top = Math.max(rect.top, editorRect.top + 1, 0);
-        const bottom = Math.min(rect.bottom, editorRect.bottom - 1, window.innerHeight);
-        if (bottom <= top) {
-          return null;
-        }
-        const canvas = element.querySelector('canvas.kix-canvas-tile-content');
-        return {
-          x: rect.x,
-          pageWidth: rect.width,
-          pageHeight: rect.height,
-          scale: canvas && rect.width > 0 ? canvas.width / rect.width : window.devicePixelRatio || 1,
-          visiblePageTop: top - rect.top,
-          visibleHeight: bottom - top,
-          clipTop: top,
-          clientHeight: editor.clientHeight,
-        };
-      }
-      return null;
-    },
-    { editorSelector: DOC_EDITOR_SELECTOR, pageSelector: DOC_PAGE_SELECTOR, wanted: number }
-  );
-}
-
 async function docCapturePage(page, number, quality) {
+  const editor = page.locator(DOC_EDITOR_SELECTOR).first();
   const slices = [];
   let covered = 0;
   let pageHeight = null;
@@ -142,18 +62,18 @@ async function docCapturePage(page, number, quality) {
   let guard = 0;
   while (guard < 20 && (pageHeight === null || covered < pageHeight - 2)) {
     guard += 1;
-    const slice = await docSlice(page, number);
+    const slice = await page.evaluate(docSliceFor, number);
     if (!slice) {
       break;
     }
-    pageHeight = slice.pageHeight;
-    pageWidth = slice.pageWidth;
+    pageHeight = slice.height;
+    pageWidth = slice.width;
     pageScale = slice.scale;
-    const sliceEnd = slice.visiblePageTop + slice.visibleHeight;
+    const sliceEnd = slice.visibleTop + slice.visibleHeight;
     if (sliceEnd <= covered + 2) {
       break;
     }
-    const skip = Math.max(0, covered - slice.visiblePageTop);
+    const skip = Math.max(0, covered - slice.visibleTop);
     const clipHeight = slice.visibleHeight - skip;
     if (clipHeight <= 0) {
       break;
@@ -164,28 +84,26 @@ async function docCapturePage(page, number, quality) {
       clip: {
         x: slice.x,
         y: slice.clipTop + skip,
-        width: slice.pageWidth,
+        width: slice.width,
         height: clipHeight,
       },
     });
     slices.push({
-      offset: Math.round(slice.visiblePageTop + skip),
+      offset: Math.round(slice.visibleTop + skip),
       image: image.toString('base64'),
     });
     covered = sliceEnd;
     if (covered >= pageHeight - 2) {
       break;
     }
-    await page.locator(DOC_EDITOR_SELECTOR).first().evaluate((element, value) => {
-      element.scrollTop = element.scrollTop + value;
-    }, slice.clientHeight - 80);
+    await page.evaluate(docScrollByValue, slice.clientHeight - 80);
     await sleep(700);
   }
   if (slices.length === 0 || pageHeight === null || pageWidth === null) {
     return null;
   }
   const base64 = await page.evaluate(
-    async ({ parts, height, width, scale, quality }) => {
+    async ({ parts, height, width, scale, quality: jpegQuality }) => {
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(width * scale);
       canvas.height = Math.round(height * scale);
@@ -199,7 +117,7 @@ async function docCapturePage(page, number, quality) {
         await image.decode();
         ctx.drawImage(image, 0, Math.round((part.offset - anchor) * scale), canvas.width, image.height);
       }
-      return canvas.toDataURL('image/jpeg', quality / 100).split(',')[1];
+      return canvas.toDataURL('image/jpeg', jpegQuality / 100).split(',')[1];
     },
     { parts: slices, height: Math.round(pageHeight), width: pageWidth, scale: pageScale, quality }
   );
@@ -242,17 +160,15 @@ export async function captureDocument(
         }
       }
     };
-    remember(await docPagePositions(page));
+    remember(await page.evaluate(collectDocPages));
     const scrollHeight = await editor.evaluate((element) => element.scrollHeight);
     let position = 0;
     let guard = 0;
     while (position < scrollHeight && guard < 2000) {
       guard += 1;
-      await editor.evaluate((element, value) => {
-        element.scrollTop = value;
-      }, position);
+      await page.evaluate(docScrollToPosition, position);
       await sleep(350);
-      remember(await docPagePositions(page));
+      remember(await page.evaluate(collectDocPages));
       position += DOC_SCROLL_STEP;
     }
     if (byIndex.size === 0) {
@@ -265,11 +181,17 @@ export async function captureDocument(
 
     const pages = [];
     for (const target of targets) {
-      await editor.evaluate((element, value) => {
-        element.scrollTop = Math.max(0, value);
-      }, target.position - 70);
+      await page.evaluate(docScrollToPosition, target.position - 70);
       await sleep(400);
-      const locator = await docPageElement(page, target.index);
+      let locator = null;
+      for (let attempt = 0; attempt < 3 && !locator; attempt += 1) {
+        const domIndex = await page.evaluate(docPageElementFor, target.index);
+        if (domIndex !== -1) {
+          locator = page.locator(DOC_PAGE_SELECTOR).nth(domIndex);
+        } else {
+          await sleep(400);
+        }
+      }
       if (!locator) {
         throw new Error(`Cannot find page ${target.index + 1} in the document.`);
       }

@@ -234,14 +234,22 @@ async function downloadPdf(blob, filename) {
 }
 
 async function downloadImages(images, folderName, itemName) {
-  for (let index = 0; index < images.length; index += 1) {
-    const blob = new Blob([images[index]], { type: 'image/jpeg' });
-    const url = await blobToDataUrl(blob);
-    await chrome.downloads.download({
-      url,
-      filename: `${folderName}/${itemName}-${String(index + 1).padStart(3, '0')}.jpg`,
-    });
-    await sleep(250);
+  const queue = images.map((image, index) => ({
+    bytes: image,
+    filename: `${folderName}/${itemName}-${String(index + 1).padStart(3, '0')}.jpg`,
+  }));
+  for (let offset = 0; offset < queue.length; offset += 4) {
+    const batch = queue.slice(offset, offset + 4);
+    await Promise.all(
+      batch.map(async (item) => {
+        const blob = new Blob([item.bytes], { type: 'image/jpeg' });
+        const url = await blobToDataUrl(blob);
+        await chrome.downloads.download({ url, filename: item.filename });
+      })
+    );
+    if (offset + 4 < queue.length) {
+      await sleep(200);
+    }
   }
 }
 
@@ -266,6 +274,16 @@ export async function captureTab(tabId, onProgress = () => {}) {
       imageFolder: false,
     });
     const quality = Math.min(100, Math.max(1, Number(storedQuality) || DEFAULT_QUALITY));
+    const colorScheme = await pageCall(tabId, 'colorScheme');
+    await sendCommand(
+      target,
+      'Emulation.setEmulatedMedia',
+      {
+        media: '',
+        features: [{ name: 'prefers-color-scheme', value: colorScheme }],
+      },
+      10000
+    );
     const description = await pageCall(tabId, 'describe');
     const result =
       description.kind === 'doc'

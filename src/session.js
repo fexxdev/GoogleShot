@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
-import { PROFILE_ROOT, systemColorScheme } from './browsers.js';
+import { PROFILE_ROOT } from './browsers.js';
+import { systemColorScheme } from './theme.js';
 import { sleep } from './util.js';
 
 const PORT_CANDIDATES = [9222, 9223, 9224, 9225];

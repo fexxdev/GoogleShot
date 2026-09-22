@@ -7,3 +7,8 @@ extension/content.js
 extension/page.js
 extension/popup.html
 extension/popup.js
+extension/manifest.json
+
+*.pdf
+*_pages/
+*_slides/

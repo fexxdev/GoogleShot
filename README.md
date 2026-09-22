@@ -110,6 +110,23 @@ gshot b
 - `--browser <name>` — `brave`, `chrome`, `msedge` or `chromium`. If omitted, the tool asks.
 - `--restart` — restart the browser automatically when it is already open.
 
+## Development
+
+```sh
+npm test    # unit tests
+npm run build   # build the extension from extension/src into extension/
+```
+
+Layout:
+
+- `src/` — CLI code (Node, Playwright)
+- `extension/src/` — extension code (service worker, content script, page script)
+- `extension/static/` — manifest and popup sources
+- `shared/doc.js` — page geometry helpers used by both versions
+- `test/` — unit tests
+
+The built extension files in `extension/*.js` and `extension/*.html` are generated. Edit the sources.
+
 ## Notes
 
 - Both versions use the editor view. The PDF keeps the aspect ratio of the source. The width is 960 pt.
