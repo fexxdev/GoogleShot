@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 *.log
+
+extension/background.js
+extension/content.js
+extension/page.js
+extension/popup.html
+extension/popup.js

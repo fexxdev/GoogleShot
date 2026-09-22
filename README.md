@@ -2,21 +2,49 @@
 
 Capture every slide of a Google Slides presentation or every page of a Google Doc as JPEG images. Build one compact PDF from the images.
 
-GoogleShot uses your browser session. It reads the Google cookies from your browser, then captures the slides or pages in a headless Chrome. Your browser stays untouched.
+Two versions:
 
-## Requirements
+- **Browser extension** (Chrome / Brave): works in your open tab, no setup.
+- **CLI**: uses your browser session and a headless Chrome.
+
+## Extension
+
+### Install
+
+1. Build the extension:
+
+```sh
+npm install
+npm run build
+```
+
+2. Open `chrome://extensions` (or `brave://extensions`).
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select the `extension/` folder.
+
+### Use
+
+1. Open a Google Doc or a Google Slides deck.
+2. Click the GoogleShot icon and then **Capture this tab**.
+3. The PDF downloads with the document name. Enable **Also save the JPEG images** to save the images too.
+
+The capture uses the Chrome debugger API. Chrome shows a small "being debugged" banner while the capture runs. The extension never reads your cookies and never uploads anything.
+
+## CLI
+
+### Requirements
 
 - Node.js 20 or newer
 - One Chromium-based browser with your Google session: Brave, Google Chrome, Microsoft Edge or Playwright Chromium
 
-## Install
+### Install
 
 ```sh
 npm install
 npm link
 ```
 
-## Quick start
+### Quick start
 
 1. Start your browser with remote debugging (one time):
 
@@ -82,10 +110,9 @@ gshot b
 
 ## Notes
 
-- The Slides capture uses the editor view. Every slide shows its final state, including animations.
-- The Docs capture uses the editor view and captures one image per page.
-- The PDF keeps the aspect ratio of the source. The width is 960 pt.
-- Slide images are about 1443x813 pixels (1.5x scale). A 318 slide deck is about 55 MB.
+- Both versions use the editor view. The PDF keeps the aspect ratio of the source. The width is 960 pt.
+- Every slide shows its final state, including animations.
+- Every document page keeps its full height, also when the page is taller than the viewport.
 - Use a lower `--quality` for smaller files. Quality 80 is about 20% smaller.
 
 ## Environment

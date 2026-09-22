@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GoogleShot</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        width: 300px;
+        font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #f8fafd;
+        color: #202124;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #202124;
+          color: #e8eaed;
+        }
+        .card {
+          background: #292a2d !important;
+          border-color: #3c4043 !important;
+        }
+        button.secondary {
+          background: transparent !important;
+          color: #8ab4f8 !important;
+          border-color: #5f6368 !important;
+        }
+        .hint {
+          color: #9aa0a6 !important;
+        }
+        .error {
+          color: #f28b82 !important;
+        }
+      }
+      .wrap {
+        padding: 14px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 4px;
+      }
+      .hint {
+        color: #5f6368;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #dadce0;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .status {
+        font-weight: 500;
+        min-height: 18px;
+      }
+      .bar {
+        height: 4px;
+        border-radius: 2px;
+        background: #dadce0;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .fill {
+        height: 100%;
+        width: 0%;
+        background: #1a73e8;
+        transition: width 0.2s ease;
+      }
+      .error {
+        color: #d93025;
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+        background: #1a73e8;
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      button.secondary {
+        background: #fff;
+        color: #1a73e8;
+        border: 1px solid #dadce0;
+        margin-top: 8px;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>GoogleShot</h1>
+      <div class="hint">Capture every slide of a deck or every page of a document.</div>
+      <div class="card">
+        <div class="status" id="status">Ready.</div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="error" id="error" hidden></div>
+      </div>
+      <button id="capture">Capture this tab</button>
+      <button class="secondary" id="open">Open docs.google.com</button>
+      <div class="card" style="margin-top: 10px">
+        <label><input type="checkbox" id="images" /> Also save the JPEG images</label>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -11,7 +11,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node bin/googleshot.js"
+    "start": "node bin/googleshot.js",
+    "build": "node scripts/build-extension.mjs"
   },
   "keywords": [
     "google-slides",
@@ -24,5 +25,8 @@
   "dependencies": {
     "pdf-lib": "^1.17.1",
     "playwright": "1.58.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
