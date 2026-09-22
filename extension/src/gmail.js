@@ -165,38 +165,35 @@ export function buildMbox(messages) {
   return messages.map((entry) => messageToMbox(entry.message, entry)).join('\n');
 }
 
-function gmailUrl(authuser, path, ik) {
+export function gmailUrl(authuser, path, ik) {
   const base = `${GMAIL_ORIGIN}/mail/u/${Number(authuser) || 0}/gmail/v1/${path}`;
   return ik ? `${base}${base.includes('?') ? '&' : '?'}ik=${encodeURIComponent(ik)}` : base;
 }
 
-async function readJson(response, label) {
-  const text = await response.text();
-  if (!response.ok || text.trim().startsWith('<')) {
-    throw new Error(`${label} failed (${response.status}): ${text.slice(0, 120)}`);
+function parseJsonText(text, label) {
+  if (!text || text.trim().startsWith('<')) {
+    throw new Error(`${label} returned a web page instead of data`);
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`${label} returned invalid JSON: ${text.slice(0, 120)}`);
+    throw new Error(`${label} returned invalid JSON`);
   }
 }
 
-export async function fetchThread({ ik, account, authuser = 0, threadId, fetchFn = fetch }) {
+export async function fetchThread({ ik, account, authuser = 0, threadId, fetchText }) {
   const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/threads/${threadId}?format=full`, ik);
-  const response = await fetchFn(url, { credentials: 'include' });
-  return readJson(response, 'Gmail API');
+  return parseJsonText(await fetchText(url), 'Gmail API');
 }
 
-export async function fetchAttachment({ ik, account, authuser = 0, messageId, attachmentId, fetchFn = fetch }) {
+export async function fetchAttachment({ ik, account, authuser = 0, messageId, attachmentId, fetchText }) {
   const url = gmailUrl(authuser, `users/${encodeURIComponent(account)}/messages/${messageId}/attachments/${attachmentId}`, ik);
-  const response = await fetchFn(url, { credentials: 'include' });
-  const json = await readJson(response, 'Gmail attachment');
+  const json = parseJsonText(await fetchText(url), 'Gmail attachment');
   return decodeBase64Url(json.data || '');
 }
 
-export async function collectThread({ ik, account, authuser = 0, threadId, fetchFn = fetch, onProgress }) {
-  const thread = await fetchThread({ ik, account, authuser, threadId, fetchFn });
+export async function collectThread({ ik, account, authuser = 0, threadId, fetchText, onProgress }) {
+  const thread = await fetchThread({ ik, account, authuser, threadId, fetchText });
   const messages = thread.messages || [];
   const entries = [];
   for (let index = 0; index < messages.length; index += 1) {
@@ -211,7 +208,7 @@ export async function collectThread({ ik, account, authuser = 0, threadId, fetch
         authuser,
         messageId: message.id,
         attachmentId: part.node.body.attachmentId,
-        fetchFn,
+        fetchText,
       });
       attachments.push({ filename: part.filename, mimeType: part.mimeType, bytes });
     }

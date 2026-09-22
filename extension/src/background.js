@@ -107,6 +107,41 @@ function sanitizeFilename(name) {
   return cleaned || 'gmail-thread';
 }
 
+async function fetchTextInPage(tabId, url) {
+  const result = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: async (fetchUrl) => {
+      try {
+        const response = await fetch(fetchUrl, { credentials: 'include' });
+        const text = await response.text();
+        return { ok: response.ok, status: response.status, text };
+      } catch (error) {
+        return { ok: false, status: 0, text: '', error: String(error && error.message ? error.message : error) };
+      }
+    },
+    args: [url],
+  });
+  const entry = result && result[0] && result[0].result;
+  log('gmail:page-fetch', {
+    url: url.slice(0, 140),
+    ok: entry ? entry.ok : null,
+    status: entry ? entry.status : null,
+    bytes: entry && entry.text ? entry.text.length : 0,
+    error: entry ? entry.error || null : 'no-result',
+  });
+  if (!entry) {
+    throw new Error('The page did not answer the fetch.');
+  }
+  if (entry.error) {
+    throw new Error(`Page fetch failed: ${entry.error}`);
+  }
+  if (!entry.ok) {
+    throw new Error(`Gmail responded ${entry.status}.`);
+  }
+  return entry.text;
+}
+
 async function gmailAuth(tabId) {
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['gmail-content.js'] });
@@ -141,6 +176,7 @@ async function exportGmailThread(tabId) {
     account,
     authuser,
     threadId,
+    fetchText: (url) => fetchTextInPage(tabId, url),
     onProgress: (done, total) => {
       log('gmail:progress', { done, total });
       setState({ message: strings.gmailFetching(done, total), percent: 5 + (done / total) * 80 });

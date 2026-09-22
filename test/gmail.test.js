@@ -124,30 +124,25 @@ test('collectThread walks messages and downloads attachments', async () => {
       },
     ],
   };
-  const jsonResponse = (payload) => ({
-    ok: true,
-    status: 200,
-    text: async () => JSON.stringify(payload),
-  });
   const calls = [];
-  const fetchFn = async (url) => {
+  const fetchText = async (url) => {
     calls.push(url);
     if (url.includes('/threads/')) {
-      return jsonResponse(thread);
+      return JSON.stringify(thread);
     }
     if (url.includes('/attachments/att-9')) {
-      return jsonResponse({
+      return JSON.stringify({
         data: Buffer.from(attachmentBytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
       });
     }
-    return { ok: false, status: 404, text: async () => 'not found' };
+    return 'not found';
   };
   const progress = [];
   const entries = await collectThread({
     ik: 'ik',
     account: 'me@x.y',
     threadId: 't1',
-    fetchFn,
+    fetchText,
     onProgress: (done, total) => progress.push([done, total]),
   });
   assert.equal(entries.length, 1);
