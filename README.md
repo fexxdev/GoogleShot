@@ -1,11 +1,13 @@
 # GoogleShot
 
-Capture every slide of a Google Slides presentation as a PNG image. Then build one PDF from the images.
+Capture every slide of a Google Slides presentation as PNG images. Build one PDF from the images.
+
+GoogleShot uses your browser session. It reads the Google cookies from your browser, then captures the slides in a headless Chrome. Your browser stays untouched.
 
 ## Requirements
 
 - Node.js 20 or newer
-- One Chromium-based browser: Brave, Google Chrome, Microsoft Edge, or Playwright Chromium
+- One Chromium-based browser with your Google session: Brave, Google Chrome, Microsoft Edge or Playwright Chromium
 
 ## Install
 
@@ -14,37 +16,52 @@ npm install
 npm link
 ```
 
-## Login (one time)
+## Quick start
+
+1. Start your browser with remote debugging (one time):
 
 ```sh
-googleshot login
+googleshot browser
 ```
 
-The tool lists the installed browsers and asks which one to open. The last choice is the default. Add `--browser brave` to skip the question.
+If the browser is already open, the command asks to restart it. Open tabs can be lost. `--restart` skips the question.
 
-The browser window opens on the Google login page. Sign in. The tool saves the session in `~/.googleshot/profiles/<browser>` and closes the window when the login completes. Use this session for private decks.
-
-## Capture
+2. Capture a deck:
 
 ```sh
-googleshot capture "https://docs.google.com/presentation/d/<id>/edit" -o deck.pdf
+googleshot capture "https://docs.google.com/presentation/d/<id>/edit"
 ```
 
-Output:
+GoogleShot reads the cookies over the Chrome DevTools Protocol, then captures every slide in a headless browser.
 
-- `<deck title>.pdf` — one PDF page for each slide.
-- `<deck title>_slides/slide-001.png` — the PNG image of each slide.
+3. Output:
 
-Options:
+```
+<deck title>.pdf
+<deck title>_slides/slide-001.png
+```
 
-- `-o, --output <file.pdf>` — PDF path.
-- `--png-dir <dir>` — PNG folder.
-- `--browser <name>` — `brave`, `chrome`, `msedge` or `chromium`.
-- `--headful` — show the browser window. Use this option to debug.
+After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.json`. Next captures work also when the browser is closed. The saved cookies expire when the Google session expires. Refresh them with a capture while the debug browser is open.
 
-## How it works
+## Commands
 
-1. Opens the presentation in the selected browser with your saved session.
-2. Reads the slide list from the editor filmstrip.
-3. Exports each slide as PNG with the Google export endpoint.
-4. Builds the PDF.
+- `googleshot capture <url|id>` — read the session, capture every slide, write the PDF and the PNG files.
+- `googleshot login` — check that your browser has a Google session.
+- `googleshot browser` — start your browser with remote debugging.
+
+## Options
+
+- `-o, --output <file.pdf>` — PDF path. Default: `<deck title>.pdf`.
+- `--png-dir <dir>` — PNG folder. Default: `<deck title>_slides`.
+- `--browser <name>` — `brave`, `chrome`, `msedge` or `chromium`. If omitted, the tool asks.
+- `--restart` — restart the browser automatically when it is already open.
+
+## Notes
+
+- The capture uses the editor view. Every slide shows its final state, including animations.
+- The PDF keeps the slide aspect ratio. The width is 960 pt.
+- Slide images are 1924x1084 pixels (2x scale).
+
+## Security
+
+`~/.googleshot/cookies.json` contains your Google session cookies. Keep this file private. GoogleShot writes it with mode 600.

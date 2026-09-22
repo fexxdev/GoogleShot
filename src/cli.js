@@ -1,25 +1,33 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { connectBrowser, hasGoogleSession, DEBUG_PORT } from './session.js';
+import {
+  connectBrowser,
+  hasGoogleSession,
+  launchHeadless,
+  readCookiesFromContext,
+  saveCookies,
+  loadCookies,
+} from './session.js';
 import { capturePresentation } from './capture.js';
 import { buildPdf } from './pdf.js';
 import { detectBrowsers, resolveBrowser } from './browsers.js';
 import { readConfig, writeConfig } from './config.js';
 import { chooseBrowser, confirm } from './prompt.js';
-import { parsePresentationId, sanitizeFilename, sleep } from './util.js';
+import { parsePresentationId, sanitizeFilename } from './util.js';
 
 const HELP = `GoogleShot - screenshot every slide of a Google Slides deck, then build a PDF.
 
 Usage:
-  googleshot browser [--browser <name>] [--restart]
-  googleshot login [--browser <name>] [--restart]
   googleshot capture <slides-url|id> [-o <file.pdf>] [--png-dir <dir>] [--browser <name>] [--restart]
+  googleshot login [--browser <name>] [--restart]
+  googleshot browser [--browser <name>] [--restart]
   googleshot <slides-url|id> [-o <file.pdf>] [--png-dir <dir>] [--browser <name>] [--restart]
 
 Commands:
+  capture    Read the session from your browser, then capture every slide in a
+             headless browser. Your browser stays untouched.
+  login      Check that your browser has a Google session.
   browser    Open your browser with remote debugging and keep it open.
-  login      Open the Google login page in your browser.
-  capture    Capture every slide as PNG and write one PDF.
 
 Options:
   -o, --output <file.pdf>   PDF path. Default: "<deck title>.pdf" in the current directory.
@@ -113,8 +121,8 @@ async function connectWithRestart(browser, { restart = false } = {}) {
 async function browserCommand(argv) {
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
-  await connectWithRestart(browser, options);
-  console.log(`${browser.label} is ready with remote debugging on port ${DEBUG_PORT}.`);
+  const { endpoint } = await connectWithRestart(browser, options);
+  console.log(`${browser.label} is ready with remote debugging on ${endpoint}.`);
   process.exit(0);
 }
 
@@ -122,18 +130,12 @@ async function loginCommand(argv) {
   const options = parseOptions(argv);
   const browser = await pickBrowser({ flag: options.browser });
   const { context } = await connectWithRestart(browser, options);
-  const page = await context.newPage();
-  await page.goto('https://accounts.google.com/', { waitUntil: 'domcontentloaded' });
-  console.log(`Sign in to Google in ${browser.label}.`);
-  for (let attempt = 0; attempt < 900; attempt += 1) {
-    if (await hasGoogleSession(context)) {
-      console.log('Login OK.');
-      await page.close();
-      process.exit(0);
-    }
-    await sleep(2000);
+  if (await hasGoogleSession(context)) {
+    console.log(`Google session found in ${browser.label}.`);
+    process.exit(0);
   }
-  throw new Error('Login timed out after 30 minutes.');
+  console.log(`No Google session in ${browser.label}. Sign in at https://accounts.google.com, then retry.`);
+  process.exit(1);
 }
 
 async function captureCommand(argv) {
@@ -143,30 +145,44 @@ async function captureCommand(argv) {
   }
   const presentationId = parsePresentationId(options.source);
   const browser = await pickBrowser({ flag: options.browser });
-  const { context } = await connectWithRestart(browser, options);
-  if (!(await hasGoogleSession(context))) {
-    console.log('No Google session found in this browser. Private decks will fail. Run "googleshot login" first.');
-  }
-  const { title, slides } = await capturePresentation(context, presentationId, {
-    onProgress: (message) => console.log(message),
-  });
 
-  const baseName = sanitizeFilename(title);
+  let cookies = null;
+  try {
+    const { context } = await connectWithRestart(browser, options);
+    cookies = await readCookiesFromContext(context, browser.label);
+    saveCookies(cookies);
+    console.log(`Session: ${cookies.length} cookies from ${browser.label}.`);
+  } catch (error) {
+    cookies = loadCookies();
+    if (!cookies) {
+      throw error;
+    }
+    console.log(`Session: saved cookies (${error.message.split('\n')[0]})`);
+  }
+
+  const { browser: headless, context } = await launchHeadless(cookies);
+  let result;
+  try {
+    result = await capturePresentation(context, presentationId, {
+      onProgress: (message) => console.log(message),
+    });
+  } finally {
+    await headless.close();
+  }
+
+  const baseName = sanitizeFilename(result.title);
   const pdfPath = path.resolve(options.output || `${baseName}.pdf`);
   const pngDir = path.resolve(options.pngDir || `${baseName}_slides`);
 
   await fs.rm(pngDir, { recursive: true, force: true });
   await fs.mkdir(pngDir, { recursive: true });
-
-  const pngPaths = [];
-  for (let index = 0; index < slides.length; index += 1) {
+  for (let index = 0; index < result.slides.length; index += 1) {
     const file = path.join(pngDir, `slide-${String(index + 1).padStart(3, '0')}.png`);
-    await fs.writeFile(file, slides[index]);
-    pngPaths.push(file);
+    await fs.writeFile(file, result.slides[index]);
   }
-  await buildPdf(pngPaths, pdfPath);
+  await buildPdf(result.slides, pdfPath);
 
-  console.log(`\nDone. ${slides.length} slides.`);
+  console.log(`\nDone. ${result.slides.length} slides.`);
   console.log(`PDF: ${pdfPath}`);
   console.log(`PNG: ${pngDir}`);
   process.exit(0);

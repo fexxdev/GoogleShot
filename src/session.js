@@ -1,18 +1,22 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { PROFILE_ROOT } from './browsers.js';
 import { sleep } from './util.js';
 
-export const DEBUG_PORT = 9222;
-export const DEBUG_ENDPOINT = `http://127.0.0.1:${DEBUG_PORT}`;
+const PORT_CANDIDATES = [9222, 9223, 9224, 9225];
+const COOKIES_PATH = path.join(PROFILE_ROOT, 'cookies.json');
 
 const AUTH_COOKIES = new Set(['SID', 'HSID', 'SSID', 'SAPISID', '__Secure-1PSID', '__Secure-3PSID']);
 
-export async function fetchDebugInfo() {
+export async function fetchDebugInfo(port) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1000);
+  const timer = setTimeout(() => controller.abort(), 800);
   try {
-    const response = await fetch(`${DEBUG_ENDPOINT}/json/version`, { signal: controller.signal });
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: controller.signal,
+    });
     if (!response.ok) {
       return null;
     }
@@ -36,6 +40,49 @@ function matchesBrowser(info, browser) {
     return /chrome/i.test(name) && !/brave|edg/i.test(name);
   }
   return !/brave|edg/i.test(name);
+}
+
+function processForPort(port) {
+  try {
+    if (process.platform === 'win32') {
+      const connections = execFileSync('netstat', ['-ano', '-p', 'tcp'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).toString();
+      const line = connections
+        .split(/\r?\n/)
+        .find((item) => item.includes(`:${port}`) && /listening/i.test(item));
+      if (!line) {
+        return null;
+      }
+      const pid = line.trim().split(/\s+/).pop();
+      const tasks = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).toString();
+      const match = tasks.match(/"([^"]+)"/);
+      return match ? match[1] : null;
+    }
+    const listeners = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fp'], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString();
+    const match = listeners.match(/^p(\d+)$/m);
+    if (!match) {
+      return null;
+    }
+    return execFileSync('ps', ['-p', match[1], '-o', 'comm='], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+function processMatchesBrowser(command, browser) {
+  if (!command || !browser.executablePath) {
+    return false;
+  }
+  return path.basename(command) === path.basename(browser.executablePath);
 }
 
 function processNameFor(browser) {
@@ -82,15 +129,15 @@ async function quitBrowser(browser) {
   throw new Error(`Could not quit ${browser.label}. Quit it manually, then retry.`);
 }
 
-async function launchBrowserWithDebug(browser) {
+async function launchBrowserWithDebug(browser, port) {
   const child = spawn(
     browser.executablePath,
-    [`--remote-debugging-port=${DEBUG_PORT}`, '--no-first-run', '--no-default-browser-check'],
+    [`--remote-debugging-port=${port}`, '--no-first-run', '--no-default-browser-check'],
     { detached: true, stdio: 'ignore' }
   );
   child.unref();
   for (let attempt = 0; attempt < 120; attempt += 1) {
-    const info = await fetchDebugInfo();
+    const info = await fetchDebugInfo(port);
     if (info) {
       return info;
     }
@@ -100,14 +147,16 @@ async function launchBrowserWithDebug(browser) {
 }
 
 export async function ensureDebugBrowser(browser, { restart = false } = {}) {
-  const info = await fetchDebugInfo();
-  if (info) {
-    if (!matchesBrowser(info, browser)) {
-      throw new Error(
-        `Port ${DEBUG_PORT} is used by ${info.Browser}. Close it, or select that browser.`
-      );
+  const usedPorts = new Set();
+  for (const port of PORT_CANDIDATES) {
+    const info = await fetchDebugInfo(port);
+    if (info) {
+      const command = processForPort(port);
+      if (processMatchesBrowser(command, browser) || matchesBrowser(info, browser)) {
+        return `http://127.0.0.1:${port}`;
+      }
+      usedPorts.add(port);
     }
-    return DEBUG_ENDPOINT;
   }
   if (isProcessRunning(browser)) {
     if (!restart) {
@@ -119,8 +168,12 @@ export async function ensureDebugBrowser(browser, { restart = false } = {}) {
     }
     await quitBrowser(browser);
   }
-  await launchBrowserWithDebug(browser);
-  return DEBUG_ENDPOINT;
+  const port = PORT_CANDIDATES.find((candidate) => !usedPorts.has(candidate));
+  if (!port) {
+    throw new Error(`No free remote debugging port in ${PORT_CANDIDATES.join(', ')}.`);
+  }
+  await launchBrowserWithDebug(browser, port);
+  return `http://127.0.0.1:${port}`;
 }
 
 export async function connectBrowser(browser, options = {}) {
@@ -130,10 +183,77 @@ export async function connectBrowser(browser, options = {}) {
   if (!context) {
     throw new Error(`Cannot open a page in ${browser.label}.`);
   }
-  return { browserServer, context };
+  return { browserServer, context, endpoint };
 }
 
 export async function hasGoogleSession(context) {
   const cookies = await context.cookies('https://www.google.com');
   return cookies.some((cookie) => AUTH_COOKIES.has(cookie.name));
 }
+
+export async function readCookiesFromContext(context, label = 'browser') {
+  const cookies = await context.cookies();
+  const relevant = cookies.filter((cookie) =>
+    /(^|\.)google\.com$|(^|\.)googleusercontent\.com$/.test(cookie.domain)
+  );
+  if (!relevant.some((cookie) => AUTH_COOKIES.has(cookie.name))) {
+    throw new Error(`No Google session in ${label}. Sign in at https://accounts.google.com first.`);
+  }
+  return relevant;
+}
+
+export function saveCookies(cookies) {
+  fs.mkdirSync(PROFILE_ROOT, { recursive: true });
+  fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2), { mode: 0o600 });
+}
+
+export function loadCookies() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf8'));
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function toPlaywrightCookie(cookie) {
+  if (!cookie.domain || !cookie.name) {
+    return null;
+  }
+  const result = {
+    name: cookie.name,
+    value: cookie.value,
+    domain: cookie.domain,
+    path: cookie.path || '/',
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: Boolean(cookie.secure),
+  };
+  if (cookie.expires && cookie.expires > 0) {
+    result.expires = cookie.expires;
+  }
+  if (cookie.sameSite === 'Strict' || cookie.sameSite === 'Lax' || cookie.sameSite === 'None') {
+    result.sameSite = cookie.sameSite;
+  }
+  return result;
+}
+
+export async function launchHeadless(cookies) {
+  const options = {
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled'],
+    ignoreDefaultArgs: ['--enable-automation'],
+  };
+  let browser;
+  try {
+    browser = await chromium.launch({ ...options, channel: 'chrome' });
+  } catch {
+    browser = await chromium.launch(options);
+  }
+  const context = await browser.newContext({
+    viewport: { width: 1600, height: 1000 },
+    deviceScaleFactor: 2,
+  });
+  await context.addCookies(cookies.map(toPlaywrightCookie).filter(Boolean));
+  return { browser, context };
+}
+
