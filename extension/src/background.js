@@ -115,7 +115,13 @@ async function fetchTextInPage(tabId, url) {
       try {
         const response = await fetch(fetchUrl, { credentials: 'include' });
         const text = await response.text();
-        return { ok: response.ok, status: response.status, text };
+        return {
+          ok: response.ok,
+          status: response.status,
+          type: response.headers.get('content-type') || '',
+          preview: text.slice(0, 90),
+          text,
+        };
       } catch (error) {
         return { ok: false, status: 0, text: '', error: String(error && error.message ? error.message : error) };
       }
@@ -127,7 +133,9 @@ async function fetchTextInPage(tabId, url) {
     url: url.slice(0, 140),
     ok: entry ? entry.ok : null,
     status: entry ? entry.status : null,
+    type: entry ? entry.type : null,
     bytes: entry && entry.text ? entry.text.length : 0,
+    preview: entry ? entry.preview : null,
     error: entry ? entry.error || null : 'no-result',
   });
   if (!entry) {

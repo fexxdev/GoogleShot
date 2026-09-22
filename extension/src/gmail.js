@@ -170,12 +170,24 @@ export function gmailUrl(authuser, path, ik) {
   return ik ? `${base}${base.includes('?') ? '&' : '?'}ik=${encodeURIComponent(ik)}` : base;
 }
 
+function stripXssiPrefix(text) {
+  const value = String(text || '');
+  const prefixes = [")]}'\n", ") ] } '\n", "while(1);", "while (1);", "for(;;);"];
+  for (const prefix of prefixes) {
+    if (value.startsWith(prefix)) {
+      return value.slice(prefix.length);
+    }
+  }
+  return value.replace(/^\s*[,)]}\'"]+\s*\n?/, '');
+}
+
 function parseJsonText(text, label) {
-  if (!text || text.trim().startsWith('<')) {
+  const cleaned = stripXssiPrefix(text).trim();
+  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
     throw new Error(`${label} returned a web page instead of data`);
   }
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch {
     throw new Error(`${label} returned invalid JSON`);
   }
