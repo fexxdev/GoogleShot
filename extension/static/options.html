@@ -50,12 +50,7 @@
         width: 32px;
         height: 32px;
         border-radius: 10px;
-        background: linear-gradient(135deg, #1a73e8, #4285f4);
-        display: grid;
-        place-items: center;
-        color: #fff;
-        font-weight: 700;
-        font-size: 13px;
+        object-fit: contain;
       }
       h1 {
         font-size: 20px;
@@ -181,7 +176,7 @@
   <body>
     <main>
       <header>
-        <div class="logo">GS</div>
+        <img class="logo" src="icons/icon-48.png" alt="GoogleShot" />
         <h1>GoogleShot</h1>
       </header>
       <p class="sub" id="versionLine"></p>
@@ -219,9 +214,17 @@
           </select>
         </div>
 
+        <label class="check"><input type="checkbox" id="imageFolder" /> <span id="imagesLabel"></span></label>
+        <label class="check"><input type="checkbox" id="debug" /> <span id="debugLabel"></span></label>
+      </section>
+
+      <section>
+        <h2 id="gmailTitle"></h2>
+        <p class="desc" id="gmailDesc"></p>
+
         <div class="row">
-          <label for="format" id="formatLabel"></label>
-          <select id="format">
+          <label for="gmailFormat" id="gmailFormatLabel"></label>
+          <select id="gmailFormat">
             <option value="mbox">mbox</option>
             <option value="pdf">pdf</option>
             <option value="txt">txt</option>
@@ -232,8 +235,14 @@
           </select>
         </div>
 
-        <label class="check"><input type="checkbox" id="imageFolder" /> <span id="imagesLabel"></span></label>
-        <label class="check"><input type="checkbox" id="debug" /> <span id="debugLabel"></span></label>
+        <div class="row">
+          <label for="gmailLimit" id="gmailLimitLabel"></label>
+          <input type="text" id="gmailLimit" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <label class="check">
+          <input type="checkbox" id="gmailAttachmentsOnly" /> <span id="gmailAttachmentsLabel"></span>
+        </label>
       </section>
 
       <section>

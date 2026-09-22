@@ -3,8 +3,7 @@ const elements = {
   site: document.getElementById('site'),
   siteIcon: document.getElementById('siteIcon'),
   siteLabel: document.getElementById('siteLabel'),
-  notice: document.getElementById('notice'),
-  noticeText: document.getElementById('noticeText'),
+
   docsCard: document.getElementById('docsCard'),
   docsTitle: document.getElementById('docsTitle'),
   docsDesc: document.getElementById('docsDesc'),
@@ -66,7 +65,7 @@ const FALLBACK = {
   popupHintGmail: 'Download the open thread with the attachments as an .mbox file.',
   popupCapture: 'Capture this tab',
   popupGmailExport: 'Export this thread',
-  popupUnsupported: 'This tool needs a Google Doc, a Slides deck or a Gmail thread.',
+
   popupAdvanced: 'Advanced options',
   popupDebug: 'Debug mode (console logs)',
   popupCopyLogs: 'Copy debug logs',
@@ -193,7 +192,6 @@ function applyStrings() {
   elements.gmailBatch.textContent = strings.popupGmailBatch;
   elements.limit.placeholder = strings.popupGmailLimitPlaceholder;
   elements.copyLogs.textContent = strings.popupCopyLogs;
-  elements.noticeText.textContent = strings.popupUnsupported;
   elements.docsTitle.textContent = strings.popupSiteDocs;
   elements.gmailTitle.textContent = strings.popupSiteGmail;
   elements.range.placeholder = strings.popupRangePlaceholder;
@@ -239,7 +237,6 @@ function applySite(site) {
   const isGmail = site === 'gmail';
   elements.docsCard.hidden = !isDocs;
   elements.gmailCard.hidden = !isGmail;
-  elements.notice.classList.toggle('visible', !isDocs && !isGmail);
   elements.advanced.hidden = !isDocs && !isGmail;
   elements.docsFields.hidden = !isDocs;
   elements.gmailFields.hidden = !isGmail;

@@ -1,4 +1,12 @@
 const elements = {
+  gmailTitle: document.getElementById('gmailTitle'),
+  gmailDesc: document.getElementById('gmailDesc'),
+  gmailFormat: document.getElementById('gmailFormat'),
+  gmailFormatLabel: document.getElementById('gmailFormatLabel'),
+  gmailLimit: document.getElementById('gmailLimit'),
+  gmailLimitLabel: document.getElementById('gmailLimitLabel'),
+  gmailAttachmentsOnly: document.getElementById('gmailAttachmentsOnly'),
+  gmailAttachmentsLabel: document.getElementById('gmailAttachmentsLabel'),
   versionLine: document.getElementById('versionLine'),
   defaultsTitle: document.getElementById('defaultsTitle'),
   defaultsDesc: document.getElementById('defaultsDesc'),
@@ -14,8 +22,6 @@ const elements = {
   speedFast: document.getElementById('speedFast'),
   speedNormal: document.getElementById('speedNormal'),
   speedSafe: document.getElementById('speedSafe'),
-  format: document.getElementById('format'),
-  formatLabel: document.getElementById('formatLabel'),
   imageFolder: document.getElementById('imageFolder'),
   imagesLabel: document.getElementById('imagesLabel'),
   debug: document.getElementById('debug'),
@@ -36,6 +42,12 @@ const FALLBACK = {
   optionsHistoryTitle: 'Export history',
   optionsHistoryDesc: 'The last 50 captures and exports.',
   optionsHistoryEmpty: 'No exports yet.',
+  optionsGmailTitle: 'Gmail defaults',
+  optionsGmailDesc: 'The popup and the right-click export use these Gmail values.',
+  popupGmailFormat: 'Format',
+  popupGmailLimit: 'Last messages',
+  popupGmailLimitPlaceholder: 'All',
+  popupGmailAttachments: 'Only the attachments (zip)',
   optionsClearHistory: 'Clear history',
   optionsSaveFailed: 'Could not save the settings.',
   colWhen: 'When',
@@ -90,9 +102,14 @@ function applyStrings() {
   elements.speedFast.textContent = strings.popupSpeedFast || 'Fast';
   elements.speedNormal.textContent = strings.popupSpeedNormal || 'Normal';
   elements.speedSafe.textContent = strings.popupSpeedSafe || 'Safe (slower)';
-  elements.formatLabel.textContent = strings.popupGmailFormat || 'Format';
   elements.imagesLabel.textContent = strings.popupSaveImages || 'Also save the JPEG images';
   elements.debugLabel.textContent = strings.popupDebug || 'Debug mode (console logs)';
+  elements.gmailTitle.textContent = strings.optionsGmailTitle;
+  elements.gmailDesc.textContent = strings.optionsGmailDesc;
+  elements.gmailFormatLabel.textContent = strings.popupGmailFormat;
+  elements.gmailLimitLabel.textContent = strings.popupGmailLimit;
+  elements.gmailAttachmentsLabel.textContent = strings.popupGmailAttachments;
+  elements.gmailLimit.placeholder = strings.popupGmailLimitPlaceholder;
   elements.historyTitle.textContent = strings.optionsHistoryTitle;
   elements.historyDesc.textContent = strings.optionsHistoryDesc;
   elements.clearHistory.textContent = strings.optionsClearHistory;
@@ -173,28 +190,43 @@ async function refresh() {
   const values = await chrome.storage.local.get({
     quality: 90,
     speed: 'normal',
-    format: 'mbox',
     imageFolder: false,
     debug: false,
     preferredTool: 'auto',
+    gmailFormat: 'mbox',
+    gmailLimit: '',
+    gmailAttachmentsOnly: false,
     history: [],
   });
   elements.quality.value = String(values.quality);
   elements.speed.value = values.speed;
-  elements.format.value = values.format;
   elements.imageFolder.checked = Boolean(values.imageFolder);
   elements.debug.checked = Boolean(values.debug);
   elements.site.value = values.preferredTool;
+  elements.gmailFormat.value = values.gmailFormat || 'mbox';
+  elements.gmailLimit.value = values.gmailLimit || '';
+  elements.gmailAttachmentsOnly.checked = Boolean(values.gmailAttachmentsOnly);
   renderHistory(values.history);
   gsLog('refresh', { version, history: values.history.length });
 }
 
 elements.quality.addEventListener('change', () => save({ quality: Number(elements.quality.value) }));
 elements.speed.addEventListener('change', () => save({ speed: elements.speed.value }));
-elements.format.addEventListener('change', () => save({ format: elements.format.value }));
 elements.imageFolder.addEventListener('change', () => save({ imageFolder: elements.imageFolder.checked }));
 elements.debug.addEventListener('change', () => save({ debug: elements.debug.checked }));
 elements.site.addEventListener('change', () => save({ preferredTool: elements.site.value }));
+elements.gmailFormat.addEventListener('change', () =>
+  save({ gmailFormat: elements.gmailFormat.value, format: elements.gmailFormat.value })
+);
+elements.gmailLimit.addEventListener('change', () =>
+  save({ gmailLimit: elements.gmailLimit.value.trim(), limit: elements.gmailLimit.value.trim() })
+);
+elements.gmailAttachmentsOnly.addEventListener('change', () =>
+  save({
+    gmailAttachmentsOnly: elements.gmailAttachmentsOnly.checked,
+    attachmentsOnly: elements.gmailAttachmentsOnly.checked,
+  })
+);
 elements.clearHistory.addEventListener('click', async () => {
   await chrome.storage.local.set({ history: [] });
   renderHistory([]);

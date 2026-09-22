@@ -3,7 +3,7 @@
     "message": "GoogleShot"
   },
   "appDescription": {
-    "message": "Capture every slide of a Google Slides deck or every page of a Google Doc as JPEG images and build a PDF."
+    "message": "Capture Google Docs and Slides as PDF, and download Gmail threads with the attachments. Local, no server."
   },
   "actionTitle": {
     "message": "GoogleShot"
