@@ -206,7 +206,6 @@ function applySite(site) {
   elements.advanced.hidden = !isDocs && !isGmail;
   elements.docsFields.hidden = !isDocs;
   elements.gmailFields.hidden = !isGmail;
-  elements.logsSection.hidden = false;
 
   if (isDocs) {
     elements.docsDesc.textContent =
@@ -282,6 +281,7 @@ async function refresh() {
   elements.speed.value = values.speed;
   elements.filename.value = values.filename;
   elements.debug.checked = Boolean(values.debug);
+  syncLogsVisibility();
 }
 
 elements.capture.addEventListener('click', async () => {
@@ -349,8 +349,13 @@ elements.quality.addEventListener('change', () => {
   chrome.storage.local.set({ quality: Number(elements.quality.value) });
 });
 
+function syncLogsVisibility() {
+  elements.logsSection.hidden = !elements.debug.checked;
+}
+
 elements.debug.addEventListener('change', () => {
   chrome.storage.local.set({ debug: elements.debug.checked });
+  syncLogsVisibility();
 });
 
 chrome.runtime.onMessage.addListener((message) => {
