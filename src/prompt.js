@@ -28,3 +28,13 @@ export async function chooseBrowser(browsers, { savedId = null } = {}) {
     rl.close();
   }
 }
+
+export async function confirm(message) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await rl.question(message)).trim().toLowerCase();
+    return answer === 'y' || answer === 'yes' || answer === 's' || answer === 'si' || answer === 'sì';
+  } finally {
+    rl.close();
+  }
+}

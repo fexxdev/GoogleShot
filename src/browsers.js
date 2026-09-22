@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { chromium } from 'playwright';
 
 const HOME = os.homedir();
 const LOCAL_APP_DATA = process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local');
@@ -14,6 +15,7 @@ const DEFINITIONS = [
   {
     id: 'brave',
     label: 'Brave',
+    appName: 'Brave Browser',
     commands: ['brave-browser', 'brave'],
     paths: {
       darwin: [
@@ -31,6 +33,7 @@ const DEFINITIONS = [
   {
     id: 'chrome',
     label: 'Google Chrome',
+    appName: 'Google Chrome',
     channel: 'chrome',
     commands: ['google-chrome', 'google-chrome-stable'],
     paths: {
@@ -49,6 +52,7 @@ const DEFINITIONS = [
   {
     id: 'msedge',
     label: 'Microsoft Edge',
+    appName: 'Microsoft Edge',
     channel: 'msedge',
     commands: ['microsoft-edge', 'microsoft-edge-stable'],
     paths: {
@@ -63,6 +67,7 @@ const DEFINITIONS = [
   {
     id: 'chromium',
     label: 'Chromium (Playwright)',
+    appName: 'Chromium',
     bundled: true,
   },
 ];
@@ -154,14 +159,20 @@ export function resolveBrowser(id) {
   if (!isInstalled(definition)) {
     throw new Error(`${definition.label} is not installed.`);
   }
+  let executablePath = null;
+  if (definition.bundled) {
+    try {
+      executablePath = chromium.executablePath();
+    } catch {
+      executablePath = null;
+    }
+  } else {
+    executablePath = findExecutable(definition);
+  }
   return {
     id: definition.id,
     label: definition.label,
-    channel: definition.channel || null,
-    executablePath: definition.channel || definition.bundled ? null : findExecutable(definition),
+    appName: definition.appName,
+    executablePath,
   };
-}
-
-export function profileDirFor(browserId) {
-  return path.join(PROFILE_ROOT, 'profiles', browserId);
 }
