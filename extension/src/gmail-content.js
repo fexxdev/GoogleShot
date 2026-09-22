@@ -1,19 +1,39 @@
 (() => {
   window.__googleshotGmail = true;
 
+  let debugEnabled = false;
+  try {
+    chrome.storage.local.get({ debug: false }).then((values) => {
+      debugEnabled = Boolean(values.debug);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.debug) {
+        debugEnabled = Boolean(changes.debug.newValue);
+      }
+    });
+  } catch {
+    // storage not available
+  }
+
+  function debugLog(...args) {
+    if (debugEnabled) {
+      console.log('[GS]', ...args);
+    }
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || message.target !== 'googleshot-gmail') {
       return undefined;
     }
     if (message.method === 'auth') {
       const result = authInfo();
-      console.log('[GS] gmail-content:auth', result);
+      debugLog('gmail-content:auth', result);
       sendResponse({ ok: true, result });
       return true;
     }
     if (message.method === 'messages') {
       const result = messages();
-      console.log('[GS] gmail-content:messages', result);
+      debugLog('gmail-content:messages', result);
       sendResponse({ ok: true, result });
       return true;
     }

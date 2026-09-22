@@ -1,10 +1,20 @@
 import { captureTab } from './capture.js';
-import { collectThread, buildMbox } from './gmail.js';
-import { log, error, getLogs } from './log.js';
+import { collectThread, EXPORT_FORMATS } from './gmail.js';
+import { log, error, getLogs, setDebug } from './log.js';
 
 const GMAIL_URL_PATTERNS = ['https://mail.google.com/*'];
 
-log('background:module-load', { version: chrome.runtime.getManifest().version });
+chrome.storage.local.get({ debug: false }).then((values) => {
+  setDebug(values.debug);
+  log('background:module-load', { version: chrome.runtime.getManifest().version, debug: values.debug });
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.debug) {
+    setDebug(changes.debug.newValue);
+    log('background:debug-changed', { debug: changes.debug.newValue });
+  }
+});
 
 const state = {
   running: false,
@@ -68,6 +78,12 @@ function buildStrings() {
     popupFilenamePlaceholder: t('popupFilenamePlaceholder'),
     popupUnsupported: t('popupUnsupported'),
     popupGmailExport: t('popupGmailExport'),
+    popupGmailFormat: t('popupGmailFormat'),
+    popupFormatMbox: t('gmailMenuFormat_mbox'),
+    popupFormatJson: t('gmailMenuFormat_json'),
+    popupFormatXml: t('gmailMenuFormat_xml'),
+    popupFormatCsv: t('gmailMenuFormat_csv'),
+    popupFormatHtml: t('gmailMenuFormat_html'),
     popupGmailHint: t('popupGmailHint'),
     popupSiteDocs: t('popupSiteDocs'),
     popupSiteSlides: t('popupSiteSlides'),
@@ -76,6 +92,7 @@ function buildStrings() {
     popupHintDocs: t('popupHintDocs'),
     popupHintSlides: t('popupHintSlides'),
     popupOpenGmail: t('popupOpenGmail'),
+    popupDebug: t('popupDebug'),
     popupCopyLogs: t('popupCopyLogs'),
     popupCopied: t('popupCopied'),
     statusReady: t('statusReady'),
@@ -213,8 +230,11 @@ async function gmailAuth(tabId) {
   return response.result;
 }
 
-async function exportGmailThread(tabId) {
+async function exportGmailThread(tabId, requestedFormat) {
   const strings = buildStrings();
+  const formatName =
+    requestedFormat && EXPORT_FORMATS[requestedFormat] ? requestedFormat : 'mbox';
+  const format = EXPORT_FORMATS[formatName];
   const { threadId, account, ik, authuser } = await gmailAuth(tabId);
   log('gmail:auth-parsed', { threadId, account, authuser, ik: ik ? `${ik.slice(0, 4)}...` : null });
   if (!threadId) {
@@ -248,20 +268,20 @@ async function exportGmailThread(tabId) {
   }
 
   setState({ message: strings.gmailBuilding, percent: 90 });
-  const mbox = buildMbox(blocks);
-  const subjectMatch = blocks[0].match(/^Subject:\s*(.+)$/m);
-  const title = decodeMimeWord(subjectMatch ? subjectMatch[1] : 'gmail-thread');
+  const title = blocks[0].subject || 'gmail-thread';
   const safeTitle = sanitizeFilename(title);
-  log('gmail:mbox-built', { bytes: mbox.length, filename: `${safeTitle}.mbox` });
-  const blob = new Blob([mbox], { type: 'application/mbox' });
+  const content = format.build(blocks, { threadId, account });
+  const filename = `${safeTitle}.${format.extension}`;
+  log('gmail:export-built', { format: formatName, bytes: content.length, filename });
+  const blob = new Blob([content], { type: format.mime });
   const url = await blobToDataUrl(blob);
-  await chrome.downloads.download({ url, filename: `${safeTitle}.mbox` });
-  log('gmail:download-started', { filename: `${safeTitle}.mbox` });
+  await chrome.downloads.download({ url, filename });
+  log('gmail:download-started', { filename });
   setState({ message: strings.gmailDone(blocks.length), percent: 100 });
   return { ok: true, count: blocks.length, title: safeTitle };
 }
 
-async function runGmail(tabId) {
+async function runGmail(tabId, format) {
   if (state.running) {
     return { ok: false, error: t('statusAlreadyRunning') };
   }
@@ -271,7 +291,7 @@ async function runGmail(tabId) {
   state.error = null;
   setState({ message: t('statusStarting'), percent: 0 });
   try {
-    return await exportGmailThread(tabId);
+    return await exportGmailThread(tabId, format);
   } catch (err) {
     error('gmail:failed', err);
     const message = err.message || String(err);
@@ -312,24 +332,42 @@ async function runCapture(tabId) {
   }
 }
 
+const MENU_FORMATS = ['mbox', 'json', 'xml', 'csv', 'html'];
+
 function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
     const lastError = chrome.runtime.lastError;
     if (lastError) {
       error('menu:remove-all', lastError);
     }
+    const base = {
+      contexts: ['page', 'selection', 'link'],
+      documentUrlPatterns: GMAIL_URL_PATTERNS,
+    };
     chrome.contextMenus.create(
-      {
-        id: 'googleshot-gmail-thread',
-        title: t('gmailMenuExport'),
-        contexts: ['page', 'selection', 'link'],
-        documentUrlPatterns: GMAIL_URL_PATTERNS,
-      },
+      { ...base, id: 'googleshot-gmail-thread', title: t('gmailMenuExport') },
       () => {
         const createError = chrome.runtime.lastError;
-        log('menu:created', { error: createError ? createError.message : null, title: t('gmailMenuExport') });
+        log('menu:created', { error: createError ? createError.message : null });
       }
     );
+    for (const format of MENU_FORMATS) {
+      chrome.contextMenus.create(
+        {
+          ...base,
+          id: `googleshot-gmail-thread-${format}`,
+          parentId: 'googleshot-gmail-thread',
+          title: t(`gmailMenuFormat_${format}`),
+        },
+        () => {
+          const createError = chrome.runtime.lastError;
+          log('menu:created-format', {
+            format,
+            error: createError ? createError.message : null,
+          });
+        }
+      );
+    }
   });
 }
 
@@ -345,10 +383,14 @@ setupContextMenus();
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   log('menu:clicked', { menuItemId: info.menuItemId, tabId: tab && tab.id, url: tab && tab.url });
-  if (info.menuItemId !== 'googleshot-gmail-thread' || !tab || !tab.id) {
+  if (!tab || !tab.id) {
     return;
   }
-  runGmail(tab.id);
+  const match = String(info.menuItemId).match(/^googleshot-gmail-thread(?:-(\w+))?$/);
+  if (!match) {
+    return;
+  }
+  runGmail(tab.id, match[1] || 'mbox');
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -364,7 +406,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message.method === 'gmail-export') {
-    runGmail(message.tabId).then(sendResponse).catch((err) => {
+    runGmail(message.tabId, message.format).then(sendResponse).catch((err) => {
       error('gmail:dispatch', err);
       sendResponse({ ok: false, error: err.message || String(err) });
     });
@@ -385,6 +427,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.method === 'logs') {
     sendResponse({ ok: true, logs: getLogs() });
+    return true;
+  }
+  if (message.method === 'debug') {
+    setDebug(message.enabled);
+    sendResponse({ ok: true });
     return true;
   }
   return undefined;

@@ -7,20 +7,21 @@
     <style>
       :root {
         color-scheme: light dark;
+        --tint: #1a73e8;
         --bg: #ffffff;
         --fg: #1f1f1f;
         --muted: #5f6368;
         --border: #e0e3e7;
-        --card: #f8fafd;
+        --card: rgba(255, 255, 255, 0.86);
+        --card-solid: #ffffff;
         --accent: #1a73e8;
         --accent-hover: #1b66c9;
         --accent-fg: #ffffff;
-        --tool-bg: #eef3fd;
-        --tool-fg: #1a73e8;
+        --chip: rgba(255, 255, 255, 0.7);
+        --input-bg: #ffffff;
         --warn-bg: #fef7e0;
         --warn-border: #f9d849;
         --warn-fg: #8a6d00;
-        --input-bg: #ffffff;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -28,16 +29,16 @@
           --fg: #e8eaed;
           --muted: #9aa0a6;
           --border: #444746;
-          --card: #282a2c;
+          --card: rgba(32, 33, 36, 0.82);
+          --card-solid: #292a2d;
           --accent: #8ab4f8;
           --accent-hover: #a8c7fa;
           --accent-fg: #1f1f1f;
-          --tool-bg: #2d3b52;
-          --tool-fg: #8ab4f8;
+          --chip: rgba(32, 33, 36, 0.6);
+          --input-bg: #1e1f20;
           --warn-bg: #3c2f0b;
           --warn-border: #7a5900;
           --warn-fg: #fdd663;
-          --input-bg: #1e1f20;
         }
       }
       * {
@@ -50,8 +51,30 @@
         background: var(--bg);
         color: var(--fg);
       }
-      .wrap {
+
+      /* backdrop: app tint + grain + soft bokeh */
+      .backdrop {
+        position: relative;
         padding: 16px;
+        overflow: hidden;
+        background:
+          radial-gradient(120px 120px at 12% 6%, color-mix(in srgb, var(--tint) 34%, transparent), transparent 70%),
+          radial-gradient(150px 150px at 92% 22%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 72%),
+          radial-gradient(190px 190px at 22% 96%, color-mix(in srgb, var(--tint) 18%, transparent), transparent 75%),
+          linear-gradient(160deg, color-mix(in srgb, var(--tint) 12%, var(--bg)), var(--bg) 62%);
+      }
+      .backdrop::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.22;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+      }
+      .content {
+        position: relative;
+        z-index: 1;
       }
 
       header {
@@ -82,35 +105,42 @@
         margin-left: auto;
         font-size: 11px;
         color: var(--muted);
-        background: var(--card);
+        background: var(--chip);
         border: 1px solid var(--border);
         border-radius: 20px;
         padding: 2px 8px;
+        backdrop-filter: blur(6px);
       }
 
       .site {
         display: flex;
         align-items: center;
-        gap: 8px;
-        background: var(--tool-bg);
-        color: var(--tool-fg);
-        border-radius: 10px;
-        padding: 8px 12px;
+        gap: 9px;
+        background: var(--chip);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 9px 12px;
         font-size: 12px;
-        font-weight: 500;
+        font-weight: 600;
         margin-bottom: 12px;
+        backdrop-filter: blur(6px);
+      }
+      .site svg {
+        flex: 0 0 auto;
       }
       .site.off {
-        background: var(--card);
         color: var(--muted);
+        font-weight: 500;
       }
 
       .card {
         background: var(--card);
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 14px;
         margin-bottom: 10px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
       }
       .card-title {
         font-size: 13px;
@@ -165,7 +195,7 @@
       button {
         width: 100%;
         border: 0;
-        border-radius: 9px;
+        border-radius: 10px;
         padding: 10px 14px;
         font: inherit;
         font-weight: 600;
@@ -182,13 +212,13 @@
         cursor: default;
       }
       button.secondary {
-        background: transparent;
+        background: var(--chip);
         color: var(--accent);
         border: 1px solid var(--border);
         font-weight: 500;
       }
       button.secondary:hover:not(:disabled) {
-        background: var(--card);
+        background: var(--card-solid);
       }
 
       .notice {
@@ -198,7 +228,7 @@
         background: var(--warn-bg);
         border: 1px solid var(--warn-border);
         color: var(--warn-fg);
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 10px 12px;
         margin-bottom: 12px;
         font-size: 12px;
@@ -260,7 +290,7 @@
         font: inherit;
         font-size: 12px;
         padding: 6px 8px;
-        border-radius: 7px;
+        border-radius: 8px;
         border: 1px solid var(--border);
         background: var(--input-bg);
         color: var(--fg);
@@ -290,94 +320,124 @@
         font-size: 12px;
         padding: 8px 12px;
       }
+
+      /* per-app tint */
+      body[data-site='docs'] {
+        --tint: #1a73e8;
+      }
+      body[data-site='slides'] {
+        --tint: #f9ab00;
+      }
+      body[data-site='gmail'] {
+        --tint: #d93025;
+      }
+      body[data-site='other'] {
+        --tint: #5f6368;
+      }
     </style>
   </head>
-  <body>
-    <div class="wrap">
-      <header>
-        <div class="logo">GS</div>
-        <h1>GoogleShot</h1>
-        <span class="version" id="version"></span>
-      </header>
+  <body data-site="other">
+    <div class="backdrop">
+      <div class="content">
+        <header>
+          <div class="logo">GS</div>
+          <h1>GoogleShot</h1>
+          <span class="version" id="version"></span>
+        </header>
 
-      <div class="site" id="site">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" id="siteIcon">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
-          <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" stroke="currentColor" stroke-width="1.6" />
-        </svg>
-        <span id="siteLabel"></span>
-      </div>
-
-      <div class="notice" id="notice">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-top: 2px; flex: 0 0 auto">
-          <path
-            d="M12 3 2 20h20L12 3Zm0 5.5v5m0 3v.5"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <span id="noticeText"></span>
-      </div>
-
-      <div class="card" id="docsCard" hidden>
-        <p class="card-title" id="docsTitle"></p>
-        <p class="card-desc" id="docsDesc"></p>
-        <button id="capture"></button>
-        <div class="status" id="docsStatus">
-          <div class="spinner"></div>
-          <span id="docsStatusText"></span>
-        </div>
-      </div>
-
-      <div class="card" id="gmailCard" hidden>
-        <p class="card-title" id="gmailTitle"></p>
-        <p class="card-desc" id="gmailDesc"></p>
-        <button id="gmailExport"></button>
-        <div class="status" id="gmailStatus">
-          <div class="spinner"></div>
-          <span id="gmailStatusText"></span>
-        </div>
-      </div>
-
-      <details class="advanced" id="advanced" hidden>
-        <summary id="advancedLabel"></summary>
-
-        <div class="fields" id="docsFields" hidden>
-          <div class="field">
-            <label for="range" id="rangeLabel"></label>
-            <input type="text" id="range" autocomplete="off" spellcheck="false" />
-          </div>
-          <div class="field">
-            <label for="speed" id="speedLabel"></label>
-            <select id="speed">
-              <option value="fast" id="speedFast"></option>
-              <option value="normal" id="speedNormal"></option>
-              <option value="safe" id="speedSafe"></option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="filename" id="filenameLabel"></label>
-            <input type="text" id="filename" autocomplete="off" spellcheck="false" />
-          </div>
-          <div class="field">
-            <label for="quality" id="qualityLabel"></label>
-            <select id="quality">
-              <option value="60">60</option>
-              <option value="70">70</option>
-              <option value="80">80</option>
-              <option value="90">90</option>
-              <option value="95">95</option>
-            </select>
-          </div>
-          <label class="check"><input type="checkbox" id="images" /> <span id="imagesLabel"></span></label>
+        <div class="site" id="site">
+          <span id="siteIcon"></span>
+          <span id="siteLabel"></span>
         </div>
 
-        <div class="logs" id="logsSection" hidden>
-          <button class="secondary" id="copyLogs"></button>
+        <div class="notice" id="notice">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-top: 2px; flex: 0 0 auto">
+            <path
+              d="M12 3 2 20h20L12 3Zm0 5.5v5m0 3v.5"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span id="noticeText"></span>
         </div>
-      </details>
+
+        <div class="card" id="docsCard" hidden>
+          <p class="card-title" id="docsTitle"></p>
+          <p class="card-desc" id="docsDesc"></p>
+          <button id="capture"></button>
+          <div class="status" id="docsStatus">
+            <div class="spinner"></div>
+            <span id="docsStatusText"></span>
+          </div>
+        </div>
+
+        <div class="card" id="gmailCard" hidden>
+          <p class="card-title" id="gmailTitle"></p>
+          <p class="card-desc" id="gmailDesc"></p>
+          <button id="gmailExport"></button>
+          <div class="status" id="gmailStatus">
+            <div class="spinner"></div>
+            <span id="gmailStatusText"></span>
+          </div>
+        </div>
+
+        <details class="advanced" id="advanced" hidden>
+          <summary id="advancedLabel"></summary>
+
+          <div class="fields" id="docsFields" hidden>
+            <div class="field">
+              <label for="range" id="rangeLabel"></label>
+              <input type="text" id="range" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="speed" id="speedLabel"></label>
+              <select id="speed">
+                <option value="fast" id="speedFast"></option>
+                <option value="normal" id="speedNormal"></option>
+                <option value="safe" id="speedSafe"></option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="filename" id="filenameLabel"></label>
+              <input type="text" id="filename" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="quality" id="qualityLabel"></label>
+              <select id="quality">
+                <option value="60">60</option>
+                <option value="70">70</option>
+                <option value="80">80</option>
+                <option value="90">90</option>
+                <option value="95">95</option>
+              </select>
+            </div>
+            <label class="check"><input type="checkbox" id="images" /> <span id="imagesLabel"></span></label>
+          </div>
+
+          <div class="fields" id="gmailFields" hidden>
+            <div class="field">
+              <label for="format" id="formatLabel"></label>
+              <select id="format">
+                <option value="mbox" id="formatMbox"></option>
+                <option value="json" id="formatJson"></option>
+                <option value="xml" id="formatXml"></option>
+                <option value="csv" id="formatCsv"></option>
+                <option value="html" id="formatHtml"></option>
+              </select>
+            </div>
+          </div>
+
+          <div class="fields" id="debugFields">
+            <label class="check"><input type="checkbox" id="debug" /> <span id="debugLabel"></span></label>
+          </div>
+
+          <div class="logs" id="logsSection" hidden>
+            <button class="secondary" id="copyLogs"></button>
+          </div>
+        </details>
+      </div>
     </div>
     <script src="popup.js"></script>
   </body>

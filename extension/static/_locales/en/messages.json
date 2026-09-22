@@ -177,7 +177,7 @@
     "message": "Doesn't work here. Open a Google Doc or a Google Slides deck first."
   },
   "gmailMenuExport": {
-    "message": "Download this thread as .mbox"
+    "message": "Download this thread"
   },
   "popupGmailExport": {
     "message": "Export this thread"
@@ -264,5 +264,26 @@
   },
   "popupCopied": {
     "message": "Copied"
+  },
+  "popupDebug": {
+    "message": "Debug mode (console logs)"
+  },
+  "gmailMenuFormat_mbox": {
+    "message": "as .mbox (full email archive)"
+  },
+  "gmailMenuFormat_json": {
+    "message": "as .json (structured data)"
+  },
+  "gmailMenuFormat_xml": {
+    "message": "as .xml (structured data)"
+  },
+  "gmailMenuFormat_csv": {
+    "message": "as .csv (messages table)"
+  },
+  "gmailMenuFormat_html": {
+    "message": "as .html (readable page)"
+  },
+  "popupGmailFormat": {
+    "message": "Format"
   }
 }

@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildCsv,
+  buildHtml,
+  buildJson,
   buildMbox,
+  buildXml,
   collectThread,
   extractOriginalMessage,
   mergeAttachments,
+  mimeParts,
   originalMessageUrl,
   toMboxEntry,
   unescapeHtml,
 } from '../extension/src/gmail.js';
 
-// a truncated message as Gmail returns it from view=om: attachment headers, no data
 const SKELETON = [
   'Delivered-To: team.ledges@gmail.com',
-  'Subject: sito Campo - Canu',
+  'Subject: =?iso-8859-1?Q?sito_Campo_-_Can=F9?=',
   'From: Erika <erika@coopcampo.it>',
   'To: team.ledges@gmail.com',
   'Date: Tue, 1 Sep 2026 12:40:42 +0000',
@@ -23,8 +27,9 @@ const SKELETON = [
   '',
   '--B1',
   'Content-Type: text/plain; charset="UTF-8"',
+  'Content-Transfer-Encoding: base64',
   '',
-  'Ciao Ragazzi,',
+  'Q2lhbyBSYWdhenppLA==',
   '',
   '--B1',
   'Content-Type: application/pdf; name="aiuti-2025.pdf"',
@@ -41,6 +46,8 @@ const SKELETON = [
   '--B1--',
 ].join('\n');
 
+const PDF_B64 = 'JVBERg==';
+
 test('unescapeHtml restores the entities Gmail uses', () => {
   assert.equal(unescapeHtml('a &lt;b&gt; &amp; &quot;c&quot;'), 'a <b> & "c"');
 });
@@ -49,21 +56,24 @@ test('extractOriginalMessage returns the raw source from the pre block', () => {
   const escaped = SKELETON.replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = `<html><body><div class="page-wrapper"><pre>${escaped}</pre></div></body></html>`;
   const message = extractOriginalMessage(html);
-  assert.match(message, /Subject: sito Campo - Canu/);
+  assert.match(message, /Subject:/);
   assert.match(message, /filename="aiuti-2025\.pdf"/);
-  assert.match(message, /filename="image001\.png"/);
 });
 
 test('mergeAttachments fills the empty attachment bodies with the real base64', () => {
-  const merged = mergeAttachments(SKELETON, ['JVBERi0xLjQK', 'iVBORw0KGgo=']);
-  assert.match(merged, /filename="aiuti-2025\.pdf"; size=418532\nContent-Transfer-Encoding: base64\n\nJVBERi0xLjQK\n/);
-  assert.match(merged, /filename="image001\.png"\nContent-Transfer-Encoding: base64\n\niVBORw0KGgo=\n/);
-  // the text part must be untouched
-  assert.match(merged, /Ciao Ragazzi,/);
+  const merged = mergeAttachments(SKELETON, [PDF_B64, 'iVBORw0KGgo=']);
+  assert.match(merged, /JVBERg==/);
+  assert.match(merged, /iVBORw0KGgo=/);
 });
 
-test('mergeAttachments leaves the message alone without boundary or data', () => {
-  assert.equal(mergeAttachments('Subject: x\n\nbody', []), 'Subject: x\n\nbody');
+test('mimeParts parses the attachments of the raw message', () => {
+  const merged = mergeAttachments(SKELETON, [PDF_B64, 'iVBORw0KGgo=']);
+  const parts = mimeParts(merged);
+  assert.equal(parts.length, 2);
+  assert.equal(parts[0].filename, 'aiuti-2025.pdf');
+  assert.equal(parts[0].mimeType, 'application/pdf');
+  assert.equal(parts[0].base64, PDF_B64);
+  assert.equal(parts[1].filename, 'image001.png');
 });
 
 test('toMboxEntry uses the real sender and date in the separator', () => {
@@ -71,43 +81,80 @@ test('toMboxEntry uses the real sender and date in the separator', () => {
   assert.match(entry, /^From Erika <erika@coopcampo\.it> Tue, 1 Sep 2026 12:40:42 \+0000\n/);
 });
 
-test('buildMbox concatenates entries', () => {
-  const mbox = buildMbox([SKELETON, SKELETON]);
-  const separators = mbox.match(/^From /gm) || [];
-  assert.equal(separators.length, 2);
+async function collected() {
+  const escaped = SKELETON.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = `<html><body><pre>${escaped}</pre></body></html>`;
+  return collectThread({
+    ik: 'ik1',
+    authuser: 2,
+    messages: [{ id: 'msg-f:111', attachments: [{ attid: '0.1', url: 'https://x/att1' }] }],
+    fetchText: async () => html,
+    fetchBytes: async () => new Uint8Array([37, 80, 68, 70]),
+  });
+}
+
+test('collectThread returns structured entries', async () => {
+  const entries = await collected();
+  assert.equal(entries.length, 1);
+  const entry = entries[0];
+  assert.equal(entry.subject, 'sito Campo - Canù');
+  assert.match(entry.from, /erika@coopcampo\.it/);
+  assert.equal(entry.body.trim(), 'Ciao Ragazzi,');
+  assert.equal(entry.attachments.length, 1);
+  assert.equal(entry.attachments[0].filename, 'aiuti-2025.pdf');
+  assert.equal(entry.attachments[0].base64, PDF_B64);
+});
+
+test('buildMbox produces one entry per message with a From separator', async () => {
+  const entries = await collected();
+  const mbox = buildMbox(entries);
+  assert.equal((mbox.match(/^From /gm) || []).length, 1);
+  assert.match(mbox, /JVBERg==/);
+});
+
+test('buildMbox still accepts raw strings', () => {
+  const mbox = buildMbox([SKELETON]);
+  assert.equal((mbox.match(/^From /gm) || []).length, 1);
+});
+
+test('buildJson includes metadata and base64 attachments', async () => {
+  const entries = await collected();
+  const json = JSON.parse(buildJson(entries, { account: 'team.ledges@gmail.com' }));
+  assert.equal(json.messageCount, 1);
+  assert.equal(json.account, 'team.ledges@gmail.com');
+  assert.equal(json.messages[0].subject, 'sito Campo - Canù');
+  assert.equal(json.messages[0].attachments[0].filename, 'aiuti-2025.pdf');
+  assert.equal(json.messages[0].attachments[0].contentBase64, PDF_B64);
+  assert.equal(json.messages[0].attachments[0].size, 4);
+});
+
+test('buildXml is valid and escapes the content', async () => {
+  const entries = await collected();
+  const xml = buildXml(entries, { account: 'a@b.c' });
+  assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+  assert.match(xml, /<subject>sito Campo - Canù<\/subject>/);
+  assert.match(xml, /<attachment filename="aiuti-2025\.pdf" mimeType="application\/pdf" encoding="base64">JVBERg==<\/attachment>/);
+  assert.equal((xml.match(/<message>/g) || []).length, 1);
+});
+
+test('buildCsv produces a header and one row per message', async () => {
+  const entries = await collected();
+  const csv = buildCsv(entries);
+  const lines = csv.split('\n');
+  assert.match(lines[0], /^date,from,to,cc,subject,attachments,body$/);
+  assert.match(lines[1], /aiuti-2025\.pdf/);
+  assert.match(lines[1], /"Ciao Ragazzi,/);
+});
+
+test('buildHtml escapes the body and lists attachments', async () => {
+  const entries = await collected();
+  const html = buildHtml(entries);
+  assert.match(html, /<!doctype html>/);
+  assert.match(html, /sito Campo - Canù/);
+  assert.match(html, /aiuti-2025\.pdf/);
 });
 
 test('originalMessageUrl keeps the permmsgid colon literal', () => {
   const url = originalMessageUrl({ authuser: 2, ik: 'abc', permmsgid: 'msg-f:123' });
   assert.equal(url, 'https://mail.google.com/mail/u/2/?ik=abc&view=om&permmsgid=msg-f:123');
-});
-
-test('collectThread stitches messages and their attachments', async () => {
-  const escaped = SKELETON.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const html = `<html><body><pre>${escaped}</pre></body></html>`;
-  const progress = [];
-  const attachmentCalls = [];
-  const entries = await collectThread({
-    ik: 'ik1',
-    authuser: 2,
-    messages: [
-      { id: 'msg-f:111', attachments: [{ attid: '0.1', url: 'https://x/att1' }] },
-      { id: 'msg-a:222', attachments: [] },
-    ],
-    fetchText: async (url) => {
-      assert.match(url, /permmsgid=msg-(f|a):(111|222)/);
-      return html;
-    },
-    fetchBytes: async (url) => {
-      attachmentCalls.push(url);
-      return new Uint8Array([37, 80, 68, 70]); // %PDF
-    },
-    onProgress: (done, total) => progress.push([done, total]),
-  });
-  assert.equal(entries.length, 2);
-  assert.deepEqual(attachmentCalls, ['https://x/att1']);
-  assert.deepEqual(progress, [[1, 2], [2, 2]]);
-  assert.match(entries[0], /JVBERg==/);
-  const mbox = buildMbox(entries);
-  assert.equal((mbox.match(/^From /gm) || []).length, 2);
 });

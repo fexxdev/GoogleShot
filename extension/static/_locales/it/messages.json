@@ -177,7 +177,7 @@
     "message": "Qui non funziono. Apri prima un Documento Google o una presentazione Google Slides."
   },
   "gmailMenuExport": {
-    "message": "Scarica questa conversazione come .mbox"
+    "message": "Scarica questa conversazione"
   },
   "popupGmailExport": {
     "message": "Esporta questa conversazione"
@@ -264,5 +264,26 @@
   },
   "popupCopied": {
     "message": "Copiato"
+  },
+  "popupDebug": {
+    "message": "Modalità debug (log in console)"
+  },
+  "gmailMenuFormat_mbox": {
+    "message": "come .mbox (archivio email completo)"
+  },
+  "gmailMenuFormat_json": {
+    "message": "come .json (dati strutturati)"
+  },
+  "gmailMenuFormat_xml": {
+    "message": "come .xml (dati strutturati)"
+  },
+  "gmailMenuFormat_csv": {
+    "message": "come .csv (tabella messaggi)"
+  },
+  "gmailMenuFormat_html": {
+    "message": "come .html (pagina leggibile)"
+  },
+  "popupGmailFormat": {
+    "message": "Formato"
   }
 }

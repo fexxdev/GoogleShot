@@ -1,6 +1,7 @@
 const elements = {
   version: document.getElementById('version'),
   site: document.getElementById('site'),
+  siteIcon: document.getElementById('siteIcon'),
   siteLabel: document.getElementById('siteLabel'),
   notice: document.getElementById('notice'),
   noticeText: document.getElementById('noticeText'),
@@ -32,6 +33,16 @@ const elements = {
   qualityLabel: document.getElementById('qualityLabel'),
   images: document.getElementById('images'),
   imagesLabel: document.getElementById('imagesLabel'),
+  gmailFields: document.getElementById('gmailFields'),
+  format: document.getElementById('format'),
+  formatLabel: document.getElementById('formatLabel'),
+  formatMbox: document.getElementById('formatMbox'),
+  formatJson: document.getElementById('formatJson'),
+  formatXml: document.getElementById('formatXml'),
+  formatCsv: document.getElementById('formatCsv'),
+  formatHtml: document.getElementById('formatHtml'),
+  debug: document.getElementById('debug'),
+  debugLabel: document.getElementById('debugLabel'),
   logsSection: document.getElementById('logsSection'),
   copyLogs: document.getElementById('copyLogs'),
 };
@@ -47,10 +58,9 @@ const FALLBACK = {
   popupHintGmail: 'Download the open thread with the attachments as an .mbox file.',
   popupCapture: 'Capture this tab',
   popupGmailExport: 'Export this thread',
-  popupOpenDocs: 'Open a Google Doc or a Slides deck',
-  popupOpenGmail: 'Open Gmail',
   popupUnsupported: 'This tool needs a Google Doc, a Slides deck or a Gmail thread.',
   popupAdvanced: 'Advanced options',
+  popupDebug: 'Debug mode (console logs)',
   popupCopyLogs: 'Copy debug logs',
   popupCopied: 'Copied',
   popupRange: 'Pages / slides',
@@ -63,11 +73,23 @@ const FALLBACK = {
   popupFilenamePlaceholder: 'Document title',
   popupQuality: 'JPEG quality',
   popupSaveImages: 'Also save the JPEG images',
-  errGmailNotThread: 'Open a Gmail thread first.',
-  errUnsupportedPage: "Doesn't work here. Open a Google Doc or a Google Slides deck.",
+  popupGmailFormat: 'Format',
+  popupFormatMbox: 'as .mbox (full email archive)',
+  popupFormatJson: 'as .json (structured data)',
+  popupFormatXml: 'as .xml (structured data)',
+  popupFormatCsv: 'as .csv (messages table)',
+  popupFormatHtml: 'as .html (readable page)',
+};
+
+const ICONS = {
+  docs: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z" fill="#4285f4"/><path d="M14 2v5h5" fill="#a1c2fa"/><path d="M8.5 12.5h7M8.5 15h7M8.5 17.5h4.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  slides: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" fill="#f9ab00"/><rect x="9" y="18" width="6" height="1.6" rx="0.8" fill="#f9ab00"/><path d="M10 7.5 15 10l-5 2.5v-5Z" fill="#fff"/></svg>`,
+  gmail: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z" fill="#fff" stroke="#d93025" stroke-width="1.4"/><path d="m3.5 6.5 8.5 6 8.5-6" stroke="#d93025" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  other: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" stroke="currentColor" stroke-width="1.6"/></svg>`,
 };
 
 let strings = { ...FALLBACK };
+let currentSite = 'other';
 
 const params = new URLSearchParams(location.search);
 const forcedTabId = Number(params.get('tabId')) || null;
@@ -76,12 +98,16 @@ const forcedSite = ['docs', 'slides', 'gmail', 'other'].includes(params.get('sit
   : null;
 
 function gsLog(step, data) {
-  console.log('[GS] popup:' + step, data === undefined ? '' : data);
   try {
     chrome.runtime.sendMessage({ target: 'googleshot', method: 'logs', popup: { step, data } });
   } catch {
     // ignore
   }
+  chrome.storage.local.get({ debug: false }).then((values) => {
+    if (values.debug) {
+      console.log('[GS] popup:' + step, data === undefined ? '' : data);
+    }
+  });
 }
 
 const detectSite = (url) => {
@@ -122,6 +148,13 @@ function applyStrings() {
   elements.filenameLabel.textContent = strings.popupFilename;
   elements.qualityLabel.textContent = strings.popupQuality;
   elements.imagesLabel.textContent = strings.popupSaveImages;
+  elements.debugLabel.textContent = strings.popupDebug;
+  elements.formatLabel.textContent = strings.popupGmailFormat;
+  elements.formatMbox.textContent = strings.popupFormatMbox;
+  elements.formatJson.textContent = strings.popupFormatJson;
+  elements.formatXml.textContent = strings.popupFormatXml;
+  elements.formatCsv.textContent = strings.popupFormatCsv;
+  elements.formatHtml.textContent = strings.popupFormatHtml;
   elements.copyLogs.textContent = strings.popupCopyLogs;
   elements.noticeText.textContent = strings.popupUnsupported;
   elements.docsTitle.textContent = strings.popupSiteDocs;
@@ -130,11 +163,11 @@ function applyStrings() {
   elements.filename.placeholder = strings.popupFilenamePlaceholder;
 }
 
-function setStatus(element, textElement, text, running, error) {
+function setStatus(element, textElement, text, running, isError) {
   textElement.textContent = text || '';
   element.classList.toggle('visible', Boolean(text));
   element.classList.toggle('running', Boolean(running));
-  element.classList.toggle('error', Boolean(error) && !running);
+  element.classList.toggle('error', Boolean(isError) && !running);
 }
 
 async function loadStrings() {
@@ -150,21 +183,59 @@ async function loadStrings() {
   return strings.statusReady;
 }
 
+function applySite(site) {
+  currentSite = site;
+  document.body.dataset.site = site;
+  elements.siteIcon.innerHTML = ICONS[site] || ICONS.other;
+  elements.site.classList.toggle('off', site === 'other');
+  if (site === 'docs') {
+    elements.siteLabel.textContent = strings.popupSiteDocs;
+  } else if (site === 'slides') {
+    elements.siteLabel.textContent = strings.popupSiteSlides;
+  } else if (site === 'gmail') {
+    elements.siteLabel.textContent = strings.popupSiteGmail;
+  } else {
+    elements.siteLabel.textContent = strings.popupSiteOther;
+  }
+
+  const isDocs = site === 'docs' || site === 'slides';
+  const isGmail = site === 'gmail';
+  elements.docsCard.hidden = !isDocs;
+  elements.gmailCard.hidden = !isGmail;
+  elements.notice.classList.toggle('visible', !isDocs && !isGmail);
+  elements.advanced.hidden = !isDocs && !isGmail;
+  elements.docsFields.hidden = !isDocs;
+  elements.gmailFields.hidden = !isGmail;
+  elements.logsSection.hidden = false;
+
+  if (isDocs) {
+    elements.docsDesc.textContent =
+      site === 'docs' ? strings.popupHintDocs : strings.popupHintSlides;
+  }
+}
+
 function renderState(state, site) {
-  if (!state || !state.running) {
+  if (!state) {
     return;
   }
   const isGmail = state.action === 'gmail';
-  if (site === 'gmail' || isGmail) {
-    setStatus(elements.gmailStatus, elements.gmailStatusText, state.message, true, false);
-  } else {
-    setStatus(elements.docsStatus, elements.docsStatusText, state.message, true, false);
+  const target = isGmail || site === 'gmail' ? elements.gmailStatus : elements.docsStatus;
+  const text = isGmail || site === 'gmail' ? elements.gmailStatusText : elements.docsStatusText;
+  if (state.running) {
+    setStatus(target, text, state.message, true, false);
+    return;
+  }
+  if (state.error) {
+    setStatus(target, text, state.error, false, true);
+    return;
+  }
+  if (state.message) {
+    setStatus(target, text, state.message, false, false);
   }
 }
 
 async function refresh() {
   const version = chrome.runtime.getManifest().version;
-  gsLog('refresh-start', { forcedTabId, version });
   elements.version.textContent = 'v' + version;
 
   const status = await loadStrings();
@@ -173,46 +244,24 @@ async function refresh() {
   const tab = await activeTab();
   const url = tab ? tab.url : '';
   const site = forcedSite || detectSite(url);
-  gsLog('active-tab', { tabId: tab && tab.id, site, url });
-
-  const isDocs = site === 'docs' || site === 'slides';
-  const isGmail = site === 'gmail';
-
-  if (isDocs) {
-    elements.siteLabel.textContent = site === 'docs' ? strings.popupSiteDocs : strings.popupSiteSlides;
-    elements.site.classList.remove('off');
-  } else if (isGmail) {
-    elements.siteLabel.textContent = strings.popupSiteGmail;
-    elements.site.classList.remove('off');
-  } else {
-    elements.siteLabel.textContent = strings.popupSiteOther;
-    elements.site.classList.add('off');
-  }
-
-  elements.docsCard.hidden = !isDocs;
-  elements.gmailCard.hidden = !isGmail;
-  elements.notice.classList.toggle('visible', !isDocs && !isGmail);
-  elements.advanced.hidden = !isDocs && !isGmail;
-  elements.docsFields.hidden = !isDocs;
-  elements.logsSection.hidden = false;
-
-  if (isDocs) {
-    elements.docsDesc.textContent =
-      site === 'docs' ? strings.popupHintDocs : strings.popupHintSlides;
-    setStatus(elements.docsStatus, elements.docsStatusText, status, false, false);
-  }
-  if (isGmail) {
-    setStatus(elements.gmailStatus, elements.gmailStatusText, status, false, false);
-  }
+  gsLog('refresh-start', { version, site, url: url && url.slice(0, 60) });
+  applySite(site);
 
   try {
     const state = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'status' });
     if (state && state.ok) {
-      renderState(state.state, site);
-      if (state.state && !state.state.running && state.state.error && site !== 'other') {
-        const target = state.state.action === 'gmail' ? elements.gmailStatus : elements.docsStatus;
-        const text = state.state.action === 'gmail' ? elements.gmailStatusText : elements.docsStatusText;
-        setStatus(target, text, state.state.error, false, true);
+      if (state.state && state.state.running) {
+        renderState(state.state, site);
+      } else if (state.state && state.state.error && site !== 'other') {
+        renderState(state.state, site);
+      } else {
+        const isDocs = site === 'docs' || site === 'slides';
+        const isGmail = site === 'gmail';
+        if (isDocs) {
+          setStatus(elements.docsStatus, elements.docsStatusText, status, false, false);
+        } else if (isGmail) {
+          setStatus(elements.gmailStatus, elements.gmailStatusText, status, false, false);
+        }
       }
     }
   } catch {
@@ -225,12 +274,14 @@ async function refresh() {
     range: '',
     speed: 'normal',
     filename: '',
+    debug: false,
   });
   elements.images.checked = Boolean(values.imageFolder);
   elements.quality.value = String(values.quality);
   elements.range.value = values.range;
   elements.speed.value = values.speed;
   elements.filename.value = values.filename;
+  elements.debug.checked = Boolean(values.debug);
 }
 
 elements.capture.addEventListener('click', async () => {
@@ -252,23 +303,35 @@ elements.capture.addEventListener('click', async () => {
 elements.gmailExport.addEventListener('click', async () => {
   const tab = await activeTab();
   gsLog('gmail-export-click', { tabId: tab && tab.id });
-  chrome.runtime.sendMessage({
-    target: 'googleshot',
-    method: 'gmail-export',
-    tabId: tab ? tab.id : null,
-  });
-  window.close();
-});
-
-elements.notice.addEventListener('click', async () => {
-  const tab = await activeTab();
-  const url = tab ? tab.url : '';
-  if (/^https:\/\/mail\.google\.com\//.test(url)) {
-    chrome.tabs.create({ url: 'https://docs.google.com/' });
+  elements.gmailExport.disabled = true;
+  setStatus(elements.gmailStatus, elements.gmailStatusText, strings.statusStarting, true, false);
+  await chrome.storage.local.set({ format: elements.format.value });
+  const response = await chrome.runtime
+    .sendMessage({
+      target: 'googleshot',
+      method: 'gmail-export',
+      tabId: tab ? tab.id : null,
+      format: elements.format.value,
+    })
+    .catch(() => null);
+  elements.gmailExport.disabled = false;
+  if (response && response.ok) {
+    setStatus(
+      elements.gmailStatus,
+      elements.gmailStatusText,
+      `${response.count || 0} -> ${response.title || ''}`,
+      false,
+      false
+    );
   } else {
-    chrome.tabs.create({ url: 'https://mail.google.com/' });
+    setStatus(
+      elements.gmailStatus,
+      elements.gmailStatusText,
+      response && response.error ? response.error : strings.statusFailed,
+      false,
+      true
+    );
   }
-  window.close();
 });
 
 elements.copyLogs.addEventListener('click', async () => {
@@ -286,10 +349,13 @@ elements.quality.addEventListener('change', () => {
   chrome.storage.local.set({ quality: Number(elements.quality.value) });
 });
 
+elements.debug.addEventListener('change', () => {
+  chrome.storage.local.set({ debug: elements.debug.checked });
+});
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message && message.target === 'googleshot-popup' && message.state) {
-    const site = message.state.action === 'gmail' ? 'gmail' : 'docs';
-    renderState(message.state, site);
+    renderState(message.state, currentSite);
   }
 });
 
