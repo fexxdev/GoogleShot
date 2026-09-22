@@ -14,6 +14,8 @@ Gmail: download an open conversation as an archive with the attachments inside. 
 
 Everything happens on your machine: no server, no account, no tracking. The files go straight to your download folder. Available in English and Italian.
 
+GoogleShot is open source: the full code is on GitHub at https://github.com/fexxdev/GoogleShot. Bug reports and contributions are welcome.
+
 ## Detailed description (Italian)
 
 GoogleShot è una cassetta degli attrezzi locale per Google Workspace. Salva quello che stai già vedendo nel browser.
@@ -23,6 +25,8 @@ Documenti e Presentazioni: cattura ogni pagina o ogni slide in un unico PDF, opp
 Gmail: scarica una conversazione aperta come archivio con gli allegati dentro. Scegli il formato al momento dell'esportazione, dall'archivio completo alla copia in testo semplice. Puoi anche esportare solo gli allegati, gli ultimi N messaggi o più conversazioni selezionate insieme.
 
 Tutto avviene sul tuo computer: nessun server, nessun account, nessun tracciamento. I file finiscono direttamente nella cartella dei download. Disponibile in italiano e inglese.
+
+GoogleShot è open source: tutto il codice è su GitHub, https://github.com/fexxdev/GoogleShot. Segnalazioni e contributi sono benvenuti.
 
 ## What's new in 0.3.13 (store field, 500 characters max)
 
