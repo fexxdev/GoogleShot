@@ -98,6 +98,30 @@ function blobToDataUrl(blob) {
   });
 }
 
+function decodeMimeWord(value) {
+  return String(value || '').replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (match, charset, encoding, text) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        const bytes = Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+        return new TextDecoder(charset).decode(bytes);
+      }
+      const bytes = [];
+      const normalized = text.replace(/_/g, ' ');
+      for (let index = 0; index < normalized.length; index += 1) {
+        if (normalized[index] === '=' && index + 2 < normalized.length) {
+          bytes.push(parseInt(normalized.slice(index + 1, index + 3), 16));
+          index += 2;
+        } else {
+          bytes.push(normalized.charCodeAt(index));
+        }
+      }
+      return new TextDecoder(charset).decode(Uint8Array.from(bytes));
+    } catch {
+      return match;
+    }
+  });
+}
+
 function sanitizeFilename(name) {
   const cleaned = (name || 'gmail-thread')
     .replace(/[/\\:*?"<>|]/g, '-')
@@ -217,7 +241,7 @@ async function exportGmailThread(tabId) {
   setState({ message: strings.gmailBuilding, percent: 90 });
   const mbox = buildMbox(blocks);
   const subjectMatch = blocks[0].match(/^Subject:\s*(.+)$/m);
-  const title = subjectMatch ? subjectMatch[1] : 'gmail-thread';
+  const title = decodeMimeWord(subjectMatch ? subjectMatch[1] : 'gmail-thread');
   const safeTitle = sanitizeFilename(title);
   log('gmail:mbox-built', { bytes: mbox.length, filename: `${safeTitle}.mbox` });
   const blob = new Blob([mbox], { type: 'application/mbox' });

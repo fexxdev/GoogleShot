@@ -105,10 +105,20 @@ export async function collectThread({ ik, authuser = 0, messages, fetchText, fet
       original = null;
     }
     if (original) {
-      const attachmentBase64 = [];
-      for (const attachment of message.attachments || []) {
-        const bytes = await fetchBytes(attachment.url);
-        attachmentBase64.push(bytesToBase64(bytes));
+      const attachments = message.attachments || [];
+      const attachmentBase64 = new Array(attachments.length);
+      const BATCH = 4;
+      for (let offset = 0; offset < attachments.length; offset += BATCH) {
+        const batch = attachments.slice(offset, offset + BATCH);
+        const results = await Promise.all(
+          batch.map(async (attachment, position) => {
+            const bytes = await fetchBytes(attachment.url);
+            return [offset + position, bytesToBase64(bytes)];
+          })
+        );
+        for (const [position, base64] of results) {
+          attachmentBase64[position] = base64;
+        }
       }
       entries.push(mergeAttachments(original, attachmentBase64));
     }
