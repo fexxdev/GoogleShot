@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cleanTitle, sanitizeFilename } from '../shared/filename.js';
+import { docComposeLayout } from '../shared/doc.js';
 import {
   buildCsv,
   collectThread,
@@ -17,6 +18,37 @@ test('cleanTitle strips the Google suffix in any language', () => {
   assert.equal(cleanTitle('No suffix here'), 'No suffix here');
   assert.equal(cleanTitle(''), '');
   assert.equal(cleanTitle(null, 'fallback'), 'fallback');
+});
+
+test('docComposeLayout keeps device-pixel slices at their true height', () => {
+  // A 816 CSS px page captured on a 2x display: the CDP bitmap is 1632 px
+  // wide, so the canvas must be 2x and each slice drawn at its real size.
+  const slices = [
+    { offset: 0, clipWidth: 816, pixelWidth: 1632, pixelHeight: 1200 },
+    { offset: 600, clipWidth: 816, pixelWidth: 1632, pixelHeight: 912 },
+  ];
+  const layout = docComposeLayout(slices, 816, 1056);
+  assert.equal(layout.width, 1632);
+  assert.equal(layout.height, 2112);
+  assert.deepEqual(layout.placements, [
+    { y: 0, width: 1632, height: 1200 },
+    { y: 1200, width: 1632, height: 912 },
+  ]);
+});
+
+test('docComposeLayout handles CSS-scale bitmaps and a scrolled first slice', () => {
+  const slices = [{ offset: 400, clipWidth: 816, pixelWidth: 816, pixelHeight: 656 }];
+  const layout = docComposeLayout(slices, 816, 1056);
+  assert.equal(layout.width, 816);
+  assert.equal(layout.height, 1056);
+  assert.deepEqual(layout.placements, [{ y: 0, width: 816, height: 656 }]);
+});
+
+test('docComposeLayout falls back to 1 when the clip width is unknown', () => {
+  const slices = [{ offset: 0, clipWidth: 0, pixelWidth: 816, pixelHeight: 1056 }];
+  const layout = docComposeLayout(slices, 816, 1056);
+  assert.equal(layout.width, 816);
+  assert.equal(layout.height, 1056);
 });
 
 test('sanitizeFilename keeps the caller fallback', () => {

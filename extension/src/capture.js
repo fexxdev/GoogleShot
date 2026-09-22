@@ -2,6 +2,7 @@ import { PDFDocument } from 'pdf-lib';
 import { checkCancelled } from './cancel.js';
 import { filterSelection, parseRange } from '../../shared/range.js';
 import { sanitizeFilename } from '../../shared/filename.js';
+import { docComposeLayout } from '../../shared/doc.js';
 
 const PAGE_WIDTH = 960;
 const DEBUGGER_VERSION = '1.3';
@@ -101,34 +102,32 @@ function captureClip(target, clip, quality) {
   });
 }
 
-async function compose(slices, pageWidth, pageHeight, scale, quality) {
+async function compose(slices, pageWidth, pageHeight, quality) {
   const images = [];
   for (const slice of slices) {
     const blob = await (await fetch(`data:image/jpeg;base64,${slice.data}`)).blob();
     const bitmap = await createImageBitmap(blob);
-    images.push({ bitmap, offset: slice.offset });
+    images.push({ bitmap, offset: slice.offset, clipWidth: slice.clipWidth });
   }
-  // Slices are captured at CSS pixel size (CDP clip scale 1); the canvas is
-  // in tile backing-store pixels, so every bitmap is drawn scaled by the
-  // same factor. Drawing at natural size here used to squash the page
-  // whenever the tile scale differed from 1.
-  const width = Math.ceil(pageWidth * scale);
-  const height = Math.ceil(pageHeight * scale);
-  const canvas = new OffscreenCanvas(width, height);
+  const layout = docComposeLayout(
+    images.map((image) => ({
+      offset: image.offset,
+      clipWidth: image.clipWidth,
+      pixelWidth: image.bitmap.width,
+      pixelHeight: image.bitmap.height,
+    })),
+    pageWidth,
+    pageHeight
+  );
+  const canvas = new OffscreenCanvas(layout.width, layout.height);
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  const anchor = Math.min(...images.map((image) => image.offset));
-  for (const image of images) {
-    ctx.drawImage(
-      image.bitmap,
-      0,
-      Math.round((image.offset - anchor) * scale),
-      width,
-      Math.round(image.bitmap.height * scale)
-    );
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  images.forEach((image, index) => {
+    const placement = layout.placements[index];
+    ctx.drawImage(image.bitmap, 0, placement.y, placement.width, placement.height);
     image.bitmap.close();
-  }
+  });
   const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: quality / 100 });
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -152,7 +151,6 @@ async function captureDoc(target, tabId, settings) {
     let covered = 0;
     let pageHeight = null;
     let pageWidth = null;
-    let pageScale = 1;
     let guard = 0;
     for (;;) {
       checkCancelled();
@@ -166,7 +164,6 @@ async function captureDoc(target, tabId, settings) {
       }
       pageHeight = slice.height;
       pageWidth = slice.width;
-      pageScale = slice.scale;
       const sliceEnd = slice.visibleTop + slice.visibleHeight;
       if (sliceEnd <= covered + 2) {
         break;
@@ -186,7 +183,11 @@ async function captureDoc(target, tabId, settings) {
         },
         quality
       );
-      slices.push({ offset: Math.round(slice.visibleTop + skip), data: shot.data });
+      slices.push({
+        offset: Math.round(slice.visibleTop + skip),
+        clipWidth: Math.round(slice.width),
+        data: shot.data,
+      });
       covered = sliceEnd;
       if (covered >= pageHeight - 2) {
         break;
@@ -196,7 +197,7 @@ async function captureDoc(target, tabId, settings) {
     if (slices.length === 0 || !pageHeight) {
       throw new Error(errors.pageCapture(pageNumber));
     }
-    const image = await compose(slices, pageWidth, pageHeight, pageScale, quality);
+    const image = await compose(slices, pageWidth, pageHeight, quality);
     images.push(image);
     const message = strings.capturingPage(position + 1, pages.length);
     const percent = 5 + ((position + 1) / pages.length) * 80;

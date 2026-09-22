@@ -48,6 +48,25 @@ export function docSliceFor(index) {
   return null;
 }
 
+// The screenshot bitmap is not always the same size as the CSS clip: CDP
+// returns device-pixel bitmaps even when the clip is in CSS pixels. Size the
+// page canvas from the real bitmap scale and draw every slice at natural
+// size, so no slice is ever stretched.
+export function docComposeLayout(slices, pageWidth, pageHeight) {
+  const first = slices[0];
+  const ratio = first && first.clipWidth > 0 ? first.pixelWidth / first.clipWidth : 1;
+  const anchor = Math.min(...slices.map((slice) => slice.offset));
+  return {
+    width: Math.round(pageWidth * ratio),
+    height: Math.round(pageHeight * ratio),
+    placements: slices.map((slice) => ({
+      y: Math.round((slice.offset - anchor) * ratio),
+      width: slice.pixelWidth,
+      height: slice.pixelHeight,
+    })),
+  };
+}
+
 export function docScrollToPosition(value) {
   const editor = document.querySelector('.kix-appview-editor');
   if (!editor) {
