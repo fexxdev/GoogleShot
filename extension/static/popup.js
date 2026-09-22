@@ -122,7 +122,12 @@ async function loadStrings() {
 }
 
 async function refresh() {
-  gsLog('refresh-start', { forcedTabId });
+  const version = chrome.runtime.getManifest().version;
+  gsLog('refresh-start', { forcedTabId, version });
+  const versionElement = document.getElementById('version');
+  if (versionElement) {
+    versionElement.textContent = 'v' + version;
+  }
   const status = await loadStrings();
   applyStrings();
 
