@@ -31,6 +31,12 @@
       sendResponse({ ok: true, result });
       return true;
     }
+    if (message.method === 'selected') {
+      const result = selectedThreads();
+      debugLog('gmail-content:selected', result);
+      sendResponse({ ok: true, result });
+      return true;
+    }
     if (message.method === 'messages') {
       const result = messages();
       debugLog('gmail-content:messages', result);
@@ -91,6 +97,34 @@
       }
     }
     return null;
+  }
+
+  function selectedThreads() {
+    const seen = new Map();
+    for (const row of document.querySelectorAll('tr[data-legacy-thread-id]')) {
+      const checkbox = row.querySelector('input[type="checkbox"], [role="checkbox"]');
+      if (!checkbox) {
+        continue;
+      }
+      const checked =
+        checkbox.checked === true ||
+        checkbox.getAttribute('aria-checked') === 'true' ||
+        row.classList.contains('x7');
+      if (!checked) {
+        continue;
+      }
+      const id = row.getAttribute('data-legacy-thread-id');
+      if (!id || seen.has(id)) {
+        continue;
+      }
+      const subjectElement = row.querySelector('.bog');
+      seen.set(id, {
+        id,
+        threadId: id,
+        subject: subjectElement ? subjectElement.textContent.trim() : '',
+      });
+    }
+    return Array.from(seen.values());
   }
 
   function messages() {

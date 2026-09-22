@@ -1,3 +1,5 @@
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { zipSync } from 'fflate';
 const GMAIL_ORIGIN = 'https://mail.google.com';
 
 const HTML_ENTITIES = {
@@ -231,12 +233,177 @@ export function buildHtml(entries) {
   return parts.join('\n');
 }
 
+export function buildText(entries) {
+  return entries
+    .map((entry) => {
+      const lines = [
+        '────────────────────────────────────────',
+        `Da: ${entry.from}`,
+        `A: ${entry.to}`,
+        ...(entry.cc ? [`Cc: ${entry.cc}`] : []),
+        `Data: ${entry.date}`,
+        `Oggetto: ${entry.subject}`,
+        '────────────────────────────────────────',
+        '',
+        entry.body.trim(),
+        '',
+        ...entry.attachments.map((attachment) => `[allegato] ${attachment.filename}`),
+      ];
+      return lines.join('\n');
+    })
+    .join('\n\n');
+}
+
+function sanitizePdfText(value) {
+  return String(value || '')
+    .replace(/[\u2192\u27A1]/g, '->')
+    .replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u2022\u25CF\u25AA]/g, '-')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u2713\u2714]/g, 'v')
+    .replace(/[^\x09\x0A\x0D\x20-\xFF]/g, '?');
+}
+
+function wrapText(text, font, size, maxWidth) {
+  const lines = [];
+  for (const rawLine of sanitizePdfText(text).split('\n')) {
+    if (!rawLine) {
+      lines.push('');
+      continue;
+    }
+    let current = '';
+    for (const word of rawLine.split(' ')) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        current = candidate;
+        continue;
+      }
+      if (current) {
+        lines.push(current);
+      }
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        current = word;
+        continue;
+      }
+      // break very long words
+      let chunk = '';
+      for (const char of word) {
+        if (font.widthOfTextAtSize(chunk + char, size) <= maxWidth) {
+          chunk += char;
+        } else {
+          lines.push(chunk);
+          chunk = char;
+        }
+      }
+      current = chunk;
+    }
+    lines.push(current);
+  }
+  return lines;
+}
+
+export async function buildPdf(entries) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 56;
+  const maxWidth = pageWidth - margin * 2;
+  let page = pdf.addPage([pageWidth, pageHeight]);
+  let y = pageHeight - margin;
+
+  const ensureSpace = (needed) => {
+    if (y - needed < margin) {
+      page = pdf.addPage([pageWidth, pageHeight]);
+      y = pageHeight - margin;
+    }
+  };
+  const write = (text, size, useBold, color) => {
+    for (const line of wrapText(text, useBold ? bold : font, size, maxWidth)) {
+      ensureSpace(size + 6);
+      page.drawText(line, {
+        x: margin,
+        y: y - size,
+        size,
+        font: useBold ? bold : font,
+        color: color || rgb(0.12, 0.12, 0.15),
+      });
+      y -= size + 6;
+    }
+  };
+
+  for (const entry of entries) {
+    write(entry.subject || '(no subject)', 16, true);
+    write(`${entry.from}  →  ${entry.to}`, 9, false, rgb(0.35, 0.36, 0.4));
+    if (entry.cc) {
+      write(`Cc: ${entry.cc}`, 9, false, rgb(0.35, 0.36, 0.4));
+    }
+    write(entry.date || '', 9, false, rgb(0.35, 0.36, 0.4));
+    y -= 6;
+    page.drawLine({
+      start: { x: margin, y },
+      end: { x: pageWidth - margin, y },
+      thickness: 0.7,
+      color: rgb(0.85, 0.86, 0.88),
+    });
+    y -= 14;
+    write(entry.body.trim(), 10.5, false);
+    if (entry.attachments.length) {
+      y -= 10;
+      write(`Allegati (${entry.attachments.length})`, 10.5, true);
+      for (const attachment of entry.attachments) {
+        write(`• ${attachment.filename} (${attachment.mimeType}, ${base64Size(attachment.base64)} bytes)`, 9.5, false, rgb(0.3, 0.31, 0.35));
+      }
+    }
+    y -= 24;
+  }
+  return await pdf.save();
+}
+
+export function buildAttachmentsZip(entries) {
+  const files = {};
+  const used = new Set();
+  for (const entry of entries) {
+    for (const attachment of entry.attachments) {
+      let name = attachment.filename || 'attachment';
+      if (used.has(name)) {
+        const dot = name.lastIndexOf('.');
+        const base = dot > 0 ? name.slice(0, dot) : name;
+        const extension = dot > 0 ? name.slice(dot) : '';
+        let counter = 2;
+        while (used.has(`${base}-${counter}${extension}`)) {
+          counter += 1;
+        }
+        name = `${base}-${counter}${extension}`;
+      }
+      used.add(name);
+      const binary = atob(attachment.base64 || '');
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      files[name] = bytes;
+    }
+  }
+  return zipSync(files, { level: 0 });
+}
+
+export function buildThreadsZip(files) {
+  return zipSync(files, { level: 6 });
+}
+
 export const EXPORT_FORMATS = {
   mbox: { extension: 'mbox', mime: 'application/mbox', build: buildMbox },
   json: { extension: 'json', mime: 'application/json', build: buildJson },
   xml: { extension: 'xml', mime: 'application/xml', build: buildXml },
   csv: { extension: 'csv', mime: 'text/csv', build: buildCsv },
   html: { extension: 'html', mime: 'text/html', build: buildHtml },
+  pdf: { extension: 'pdf', mime: 'application/pdf', build: buildPdf },
+  txt: { extension: 'txt', mime: 'text/plain', build: buildText },
 };
 
 function messageHeader(message, name) {

@@ -285,5 +285,55 @@
   },
   "popupGmailFormat": {
     "message": "Formato"
+  },
+  "gmailMenuFormat_pdf": {
+    "message": "come .pdf (vista stampa)"
+  },
+  "gmailMenuFormat_txt": {
+    "message": "come .txt (testo semplice)"
+  },
+  "gmailNoAttachments": {
+    "message": "Questa conversazione non ha allegati."
+  },
+  "gmailNoSelection": {
+    "message": "Seleziona prima una o più conversazioni."
+  },
+  "gmailBatchProgress": {
+    "message": "Conversazione $CURRENT$ di $TOTAL$: $SUBJECT$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      },
+      "subject": {
+        "content": "$3"
+      }
+    }
+  },
+  "popupGmailAttachments": {
+    "message": "Solo gli allegati (zip)"
+  },
+  "popupGmailLimit": {
+    "message": "Ultimi messaggi"
+  },
+  "popupGmailLimitPlaceholder": {
+    "message": "Tutti"
+  },
+  "popupGmailCopy": {
+    "message": "Copia come testo"
+  },
+  "popupGmailBatch": {
+    "message": "Esporta le conversazioni selezionate"
+  },
+  "popupCopiedThread": {
+    "message": "Copiato"
+  },
+  "popupFormatPdf": {
+    "message": "come .pdf (vista stampa)"
+  },
+  "popupFormatTxt": {
+    "message": "come .txt (testo semplice)"
   }
 }

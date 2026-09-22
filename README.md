@@ -1,162 +1,95 @@
 # GoogleShot
 
-Capture every slide of a Google Slides presentation or every page of a Google Doc as JPEG images. Build one compact PDF from the images.
+A toolbox for Google Workspace, in the browser and on the command line.
 
-Two versions:
+**Docs and Slides → PDF.** Capture every page of a Google Doc or every slide of a Google Slides deck as JPEG images, then build one compact PDF. The capture renders the real editor, so animations and final states are kept.
 
-- **Browser extension** (Chrome / Brave): works in your open tab, no setup.
-- **CLI**: uses your browser session and a headless Chrome.
+**Gmail → archive.** Right-click a thread and download it as a complete archive: `.mbox`, `.pdf`, `.txt`, `.json`, `.xml`, `.csv` or `.html`, with the attachments inside. No Takeout, no labels, no waiting.
 
-## Extension
+Everything runs on your machine. No server, no analytics, no uploads.
+
+## Extension (Chrome, Brave, Edge)
 
 ### Install
 
-1. Build the extension:
+**From the store**: (link coming soon)
+
+**From source**:
 
 ```sh
 npm install
 npm run build
 ```
 
-2. Open `chrome://extensions` (or `brave://extensions`).
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select the `extension/` folder.
+Then open `chrome://extensions` (or `brave://extensions`), enable **Developer mode**, click **Load unpacked** and select the `extension/` folder.
 
 ### Use — Docs and Slides
 
-1. Open a Google Doc or a Google Slides deck.
-2. Click the GoogleShot icon and then **Capture this tab**.
-3. The popup closes, the page shows a small progress panel, and the PDF downloads with the document name.
+1. Open a document or a presentation.
+2. Click the GoogleShot icon and **Capture this tab**.
+3. The PDF and the JPEG images land in your downloads.
 
-On any other page the popup shows "Doesn't work here" and the capture button stays disabled. The extension follows the browser language (English and Italian).
+Options: page range (`1-5,8`), capture speed, file name, JPEG quality, save the images.
 
-### Use — Gmail threads
+### Use — Gmail
 
-1. Open a Gmail thread.
-2. Right-click anywhere in the page and choose **Download this thread as .mbox**, or click the GoogleShot icon and **Export this thread**.
-3. GoogleShot downloads an `.mbox` file with every message of the thread and the attachments.
+1. Open a thread.
+2. Right-click anywhere and pick a format under **Download this thread**, or use the popup.
+3. You get the whole thread, attachments included.
 
-The export uses the Gmail session of the tab. It reads the thread and the attachments over HTTPS with your cookies, and it never sends anything to third parties. Files are saved by Chrome, like any other download.
+Formats: `.mbox` (full RFC822 archive), `.pdf`, `.txt`, `.json`, `.xml`, `.csv`, `.html`. Extra options: attachments only (zip), last N messages. Select several threads in the list and use **Export selected threads** to get them in one zip.
 
-**Advanced options**:
+### Options
 
-- **Pages / slides** — capture a subset. Examples: `1-5`, `2,4,7`, `3-`.
-- **Capture speed** — `Fast`, `Normal` or `Safe (slower)` for slow machines.
-- **File name** — override the PDF name. Default: the document title.
-- **JPEG quality** — image compression, like `--quality` on the CLI.
-- **Also save the JPEG images** — write the images next to the PDF.
+The gear icon in the popup opens the options page: defaults, debug mode and the export history.
 
-The capture uses the Chrome debugger API. Chrome shows a small "being debugged" banner while the capture runs. The extension never reads your cookies and never uploads anything.
-
-## CLI
-
-### Requirements
-
-- Node.js 20 or newer
-- One Chromium-based browser with your Google session: Brave, Google Chrome, Microsoft Edge or Playwright Chromium
-
-### Install
+## CLI (Node.js 20+)
 
 ```sh
 npm install
 npm link
 ```
 
-### Quick start
-
-1. Start your browser with remote debugging (one time):
+One time, start your browser with remote debugging:
 
 ```sh
 googleshot browser
 ```
 
-If the browser is already open, the command asks to restart it. Open tabs can be lost. `--restart` skips the question.
-
-2. Capture a deck:
-
-```sh
-googleshot capture "https://docs.google.com/presentation/d/<id>/edit"
-```
-
-or a document:
-
-```sh
-googleshot capture "https://docs.google.com/document/d/<id>/edit"
-```
-
-Always put the URL in quotes. The `?` of query parameters is a glob character in zsh.
-
-GoogleShot reads the cookies over the Chrome DevTools Protocol, then captures every slide or page in a headless browser.
-
-3. Output for a deck:
-
-```
-<deck title>.pdf
-<deck title>_slides/slide-001.jpg
-```
-
-Output for a document:
-
-```
-<doc title>.pdf
-<doc title>_pages/page-001.jpg
-```
-
-GoogleShot reads the cookies straight from the debug browser, uses them in memory and never writes them to disk. Keep the debug browser open for every capture.
-
-## Commands
-
-- `googleshot capture <url|id>` — read the session, capture every slide of a presentation or every page of a document, write the PDF and the JPEG files.
-- `googleshot login` — check that your browser has a Google session.
-- `googleshot browser` — start your browser with remote debugging.
-
-`gshot` is a short alias of `googleshot`. These shorthands work: `c` for `capture`, `l` for `login`, `b` for `browser`.
+Then capture:
 
 ```sh
 gshot c "https://docs.google.com/document/d/<id>/edit"
-gshot l
-gshot b
+gshot c "https://docs.google.com/presentation/d/<id>/edit"
+gshot l        # check the Google session
+gshot b        # start the debug browser
 ```
 
-## Options
+`gshot` is a short alias of `googleshot`. Commands: `c` = capture, `l` = login, `b` = browser.
 
-- `-o, --output <file.pdf>` — PDF path. Default: `<title>.pdf`.
-- `--images-dir <dir>` — Image folder. Default: `<title>_slides` for Slides, `<title>_pages` for Docs.
-- `--quality <1-100>` — JPEG quality of the images. Default: 90.
-- `--browser <name>` — `brave`, `chrome`, `msedge` or `chromium`. If omitted, the tool asks.
-- `--restart` — restart the browser automatically when it is already open.
+The CLI reads the cookies from the debug browser, uses them in memory and never writes a cookie file.
+
+## Privacy
+
+GoogleShot has no backend. It reads the page you ask for, builds the file locally and saves it in your downloads. Nothing leaves your machine. The full text: [PRIVACY.md](PRIVACY.md).
 
 ## Development
 
 ```sh
-npm test    # unit tests
-npm run build   # build the extension from extension/src into extension/
+npm test          # unit tests
+npm run build     # build the extension into extension/
 ```
 
 Layout:
 
 - `src/` — CLI code (Node, Playwright)
-- `extension/src/` — extension code (service worker, content script, page script)
-- `extension/static/` — manifest and popup sources
-- `shared/doc.js` — page geometry helpers used by both versions
+- `extension/src/` — extension code (service worker, content scripts, page script, PDF and mbox builders)
+- `extension/static/` — manifest, popup, options, locales
+- `shared/` — geometry helpers used by both
 - `test/` — unit tests
 
-The built extension files in `extension/*.js` and `extension/*.html` are generated. Edit the sources.
+Every `npm run build` bumps the extension version, so you always know which build is loaded.
 
-## Notes
+## License
 
-- Both versions use the editor view. The PDF keeps the aspect ratio of the source. The width is 960 pt.
-- Every slide shows its final state, including animations.
-- Every document page keeps its full height, also when the page is taller than the viewport.
-- Use a lower `--quality` for smaller files. Quality 80 is about 20% smaller.
-
-## Environment
-
-- `GOOGLESHOT_COLOR_SCHEME` — `dark` or `light`. The captures follow the system theme. Set this to override the detection.
-- `GOOGLESHOT_HOME` — folder for the cookies and the config. Default: `~/.googleshot`.
-- `GOOGLESHOT_LANG` — `en` or `it`. The CLI follows the system language. Set this to override the detection.
-
-## Security
-
-- The CLI keeps the cookies in memory only. It never writes a cookie file.
-- The extension never reads the cookies. It works inside the open tab with the session of the tab.
+MIT — see [LICENSE](LICENSE).

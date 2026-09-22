@@ -8,6 +8,8 @@ extension/gmail-content.js
 extension/page.js
 extension/popup.html
 extension/popup.js
+extension/options.html
+extension/options.js
 extension/manifest.json
 extension/_locales/
 

@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GoogleShot — Options</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f8fafd;
+        --fg: #1f1f1f;
+        --muted: #5f6368;
+        --border: #e0e3e7;
+        --card: #ffffff;
+        --accent: #1a73e8;
+        --accent-fg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1e1f20;
+          --fg: #e8eaed;
+          --muted: #9aa0a6;
+          --border: #444746;
+          --card: #282a2c;
+          --accent: #8ab4f8;
+          --accent-fg: #1f1f1f;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 6px;
+      }
+      .logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #1a73e8, #4285f4);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0 0 28px;
+        font-size: 13px;
+      }
+      section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0 0 4px;
+      }
+      .desc {
+        color: var(--muted);
+        font-size: 12.5px;
+        margin: 0 0 16px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .row label {
+        color: var(--fg);
+      }
+      select,
+      input[type="text"] {
+        width: 100%;
+        max-width: 320px;
+        font: inherit;
+        font-size: 13px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--fg);
+      }
+      .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 12px;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 12px 0;
+      }
+      button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        border: 0;
+        border-radius: 9px;
+        padding: 9px 16px;
+        cursor: pointer;
+        background: var(--accent);
+        color: var(--accent-fg);
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        font-weight: 500;
+      }
+      .saved {
+        color: #1e8e3e;
+        font-size: 12px;
+        margin-left: 10px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+      .saved.visible {
+        opacity: 1;
+      }
+      @media (prefers-color-scheme: dark) {
+        .saved {
+          color: #81c995;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="logo">GS</div>
+        <h1>GoogleShot</h1>
+      </header>
+      <p class="sub" id="versionLine"></p>
+
+      <section>
+        <h2 id="defaultsTitle"></h2>
+        <p class="desc" id="defaultsDesc"></p>
+
+        <div class="row">
+          <label for="site" id="defaultToolLabel"></label>
+          <select id="site">
+            <option value="auto" id="siteAuto"></option>
+            <option value="docs" id="siteDocs"></option>
+            <option value="gmail" id="siteGmail"></option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="quality" id="qualityLabel"></label>
+          <select id="quality">
+            <option value="60">60</option>
+            <option value="70">70</option>
+            <option value="80">80</option>
+            <option value="90">90</option>
+            <option value="95">95</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="speed" id="speedLabel"></label>
+          <select id="speed">
+            <option value="fast" id="speedFast"></option>
+            <option value="normal" id="speedNormal"></option>
+            <option value="safe" id="speedSafe"></option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="format" id="formatLabel"></label>
+          <select id="format">
+            <option value="mbox">mbox</option>
+            <option value="pdf">pdf</option>
+            <option value="txt">txt</option>
+            <option value="json">json</option>
+            <option value="xml">xml</option>
+            <option value="csv">csv</option>
+            <option value="html">html</option>
+          </select>
+        </div>
+
+        <label class="check"><input type="checkbox" id="imageFolder" /> <span id="imagesLabel"></span></label>
+        <label class="check"><input type="checkbox" id="debug" /> <span id="debugLabel"></span></label>
+      </section>
+
+      <section>
+        <h2 id="historyTitle"></h2>
+        <p class="desc" id="historyDesc"></p>
+        <div id="historyContainer"></div>
+        <button class="secondary" id="clearHistory" style="margin-top: 12px"></button>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

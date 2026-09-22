@@ -1,0 +1,209 @@
+const elements = {
+  versionLine: document.getElementById('versionLine'),
+  defaultsTitle: document.getElementById('defaultsTitle'),
+  defaultsDesc: document.getElementById('defaultsDesc'),
+  defaultToolLabel: document.getElementById('defaultToolLabel'),
+  site: document.getElementById('site'),
+  siteAuto: document.getElementById('siteAuto'),
+  siteDocs: document.getElementById('siteDocs'),
+  siteGmail: document.getElementById('siteGmail'),
+  quality: document.getElementById('quality'),
+  qualityLabel: document.getElementById('qualityLabel'),
+  speed: document.getElementById('speed'),
+  speedLabel: document.getElementById('speedLabel'),
+  speedFast: document.getElementById('speedFast'),
+  speedNormal: document.getElementById('speedNormal'),
+  speedSafe: document.getElementById('speedSafe'),
+  format: document.getElementById('format'),
+  formatLabel: document.getElementById('formatLabel'),
+  imageFolder: document.getElementById('imageFolder'),
+  imagesLabel: document.getElementById('imagesLabel'),
+  debug: document.getElementById('debug'),
+  debugLabel: document.getElementById('debugLabel'),
+  historyTitle: document.getElementById('historyTitle'),
+  historyDesc: document.getElementById('historyDesc'),
+  historyContainer: document.getElementById('historyContainer'),
+  clearHistory: document.getElementById('clearHistory'),
+};
+
+const FALLBACK = {
+  optionsDefaultsTitle: 'Defaults',
+  optionsDefaultsDesc: 'The popup uses these values for every capture and export.',
+  optionsDefaultTool: 'Preferred tool',
+  optionsToolAuto: 'Detect the site automatically',
+  optionsToolDocs: 'Docs and Slides',
+  optionsToolGmail: 'Gmail',
+  optionsHistoryTitle: 'Export history',
+  optionsHistoryDesc: 'The last 50 captures and exports.',
+  optionsHistoryEmpty: 'No exports yet.',
+  optionsClearHistory: 'Clear history',
+  optionsSaveFailed: 'Could not save the settings.',
+  colWhen: 'When',
+  colTool: 'Tool',
+  colTitle: 'Title',
+  colFormat: 'Format',
+  colItems: 'Items',
+  toolCapture: 'Docs / Slides',
+  toolGmail: 'Gmail',
+};
+
+const TOOL_LABELS = {
+  capture: 'toolCapture',
+  gmail: 'toolGmail',
+};
+
+let strings = { ...FALLBACK };
+
+function gsLog(step, data) {
+  try {
+    chrome.runtime.sendMessage({ target: 'googleshot', method: 'logs', popup: { step, data } });
+  } catch {
+    // ignore
+  }
+  chrome.storage.local.get({ debug: false }).then((values) => {
+    if (values.debug) {
+      console.log('[GS] options:' + step, data === undefined ? '' : data);
+    }
+  });
+}
+
+async function loadStrings() {
+  try {
+    const response = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'strings' });
+    if (response && response.ok && response.strings) {
+      strings = { ...FALLBACK, ...response.strings };
+    }
+  } catch {
+    // fallbacks
+  }
+}
+
+function applyStrings() {
+  elements.defaultsTitle.textContent = strings.optionsDefaultsTitle;
+  elements.defaultsDesc.textContent = strings.optionsDefaultsDesc;
+  elements.defaultToolLabel.textContent = strings.optionsDefaultTool;
+  elements.siteAuto.textContent = strings.optionsToolAuto;
+  elements.siteDocs.textContent = strings.optionsToolDocs;
+  elements.siteGmail.textContent = strings.optionsToolGmail;
+  elements.qualityLabel.textContent = strings.popupQuality || 'JPEG quality';
+  elements.speedLabel.textContent = strings.popupSpeed || 'Capture speed';
+  elements.speedFast.textContent = strings.popupSpeedFast || 'Fast';
+  elements.speedNormal.textContent = strings.popupSpeedNormal || 'Normal';
+  elements.speedSafe.textContent = strings.popupSpeedSafe || 'Safe (slower)';
+  elements.formatLabel.textContent = strings.popupGmailFormat || 'Format';
+  elements.imagesLabel.textContent = strings.popupSaveImages || 'Also save the JPEG images';
+  elements.debugLabel.textContent = strings.popupDebug || 'Debug mode (console logs)';
+  elements.historyTitle.textContent = strings.optionsHistoryTitle;
+  elements.historyDesc.textContent = strings.optionsHistoryDesc;
+  elements.clearHistory.textContent = strings.optionsClearHistory;
+}
+
+function formatDate(iso) {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
+
+function renderHistory(history) {
+  if (!history || history.length === 0) {
+    elements.historyContainer.innerHTML = '';
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = strings.optionsHistoryEmpty;
+    elements.historyContainer.appendChild(empty);
+    elements.clearHistory.hidden = true;
+    return;
+  }
+  elements.clearHistory.hidden = false;
+  const table = document.createElement('table');
+  const head = document.createElement('tr');
+  for (const key of ['colWhen', 'colTool', 'colTitle', 'colFormat', 'colItems']) {
+    const th = document.createElement('th');
+    th.textContent = strings[key] || key;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+  for (const entry of history.slice(0, 50)) {
+    const row = document.createElement('tr');
+    const cells = [
+      formatDate(entry.at),
+      strings[TOOL_LABELS[entry.action] || 'toolCapture'],
+      entry.title || '',
+      entry.format || '',
+      String(entry.count === undefined ? '' : entry.count),
+    ];
+    for (const value of cells) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      row.appendChild(td);
+    }
+    table.appendChild(row);
+  }
+  elements.historyContainer.innerHTML = '';
+  elements.historyContainer.appendChild(table);
+}
+
+let saveTimer = null;
+
+function flashSaved() {
+  const line = document.getElementById('savedLine') || document.createElement('span');
+  line.id = 'savedLine';
+  line.className = 'saved visible';
+  line.textContent = '✓';
+  elements.versionLine.appendChild(line);
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+  saveTimer = setTimeout(() => line.classList.remove('visible'), 1200);
+}
+
+async function save(values) {
+  await chrome.storage.local.set(values);
+  flashSaved();
+}
+
+async function refresh() {
+  const version = chrome.runtime.getManifest().version;
+  elements.versionLine.textContent = `v${version}`;
+  await loadStrings();
+  applyStrings();
+
+  const values = await chrome.storage.local.get({
+    quality: 90,
+    speed: 'normal',
+    format: 'mbox',
+    imageFolder: false,
+    debug: false,
+    preferredTool: 'auto',
+    history: [],
+  });
+  elements.quality.value = String(values.quality);
+  elements.speed.value = values.speed;
+  elements.format.value = values.format;
+  elements.imageFolder.checked = Boolean(values.imageFolder);
+  elements.debug.checked = Boolean(values.debug);
+  elements.site.value = values.preferredTool;
+  renderHistory(values.history);
+  gsLog('refresh', { version, history: values.history.length });
+}
+
+elements.quality.addEventListener('change', () => save({ quality: Number(elements.quality.value) }));
+elements.speed.addEventListener('change', () => save({ speed: elements.speed.value }));
+elements.format.addEventListener('change', () => save({ format: elements.format.value }));
+elements.imageFolder.addEventListener('change', () => save({ imageFolder: elements.imageFolder.checked }));
+elements.debug.addEventListener('change', () => save({ debug: elements.debug.checked }));
+elements.site.addEventListener('change', () => save({ preferredTool: elements.site.value }));
+elements.clearHistory.addEventListener('click', async () => {
+  await chrome.storage.local.set({ history: [] });
+  renderHistory([]);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.history) {
+    renderHistory(changes.history.newValue || []);
+  }
+});
+
+refresh();

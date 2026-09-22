@@ -285,5 +285,55 @@
   },
   "popupGmailFormat": {
     "message": "Format"
+  },
+  "gmailMenuFormat_pdf": {
+    "message": "as .pdf (print view)"
+  },
+  "gmailMenuFormat_txt": {
+    "message": "as .txt (plain text)"
+  },
+  "gmailNoAttachments": {
+    "message": "This thread has no attachments."
+  },
+  "gmailNoSelection": {
+    "message": "Select one or more threads first."
+  },
+  "gmailBatchProgress": {
+    "message": "Thread $CURRENT$ of $TOTAL$: $SUBJECT$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      },
+      "subject": {
+        "content": "$3"
+      }
+    }
+  },
+  "popupGmailAttachments": {
+    "message": "Only the attachments (zip)"
+  },
+  "popupGmailLimit": {
+    "message": "Last messages"
+  },
+  "popupGmailLimitPlaceholder": {
+    "message": "All"
+  },
+  "popupGmailCopy": {
+    "message": "Copy as text"
+  },
+  "popupGmailBatch": {
+    "message": "Export selected threads"
+  },
+  "popupCopiedThread": {
+    "message": "Copied"
+  },
+  "popupFormatPdf": {
+    "message": "as .pdf (print view)"
+  },
+  "popupFormatTxt": {
+    "message": "as .txt (plain text)"
   }
 }

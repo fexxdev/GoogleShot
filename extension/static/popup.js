@@ -41,6 +41,14 @@ const elements = {
   formatXml: document.getElementById('formatXml'),
   formatCsv: document.getElementById('formatCsv'),
   formatHtml: document.getElementById('formatHtml'),
+  formatPdf: document.getElementById('formatPdf'),
+  formatTxt: document.getElementById('formatTxt'),
+  limit: document.getElementById('limit'),
+  limitLabel: document.getElementById('limitLabel'),
+  attachmentsOnly: document.getElementById('attachmentsOnly'),
+  attachmentsLabel: document.getElementById('attachmentsLabel'),
+  gmailCopy: document.getElementById('gmailCopy'),
+  gmailBatch: document.getElementById('gmailBatch'),
   debug: document.getElementById('debug'),
   debugLabel: document.getElementById('debugLabel'),
   logsSection: document.getElementById('logsSection'),
@@ -79,6 +87,15 @@ const FALLBACK = {
   popupFormatXml: 'as .xml (structured data)',
   popupFormatCsv: 'as .csv (messages table)',
   popupFormatHtml: 'as .html (readable page)',
+  popupFormatPdf: 'as .pdf (print view)',
+  popupFormatTxt: 'as .txt (plain text)',
+  popupGmailAttachments: 'Only the attachments (zip)',
+  popupGmailLimit: 'Last messages',
+  popupGmailLimitPlaceholder: 'All',
+  popupGmailCopy: 'Copy as text',
+  popupGmailBatch: 'Export selected threads',
+  popupCopiedThread: 'Copied',
+  statusFailed: 'Failed',
 };
 
 const ICONS = {
@@ -92,10 +109,23 @@ let strings = { ...FALLBACK };
 let currentSite = 'other';
 
 const params = new URLSearchParams(location.search);
-const forcedTabId = Number(params.get('tabId')) || null;
-const forcedSite = ['docs', 'slides', 'gmail', 'other'].includes(params.get('site'))
+// the dev overrides work only in debug mode, so a published build ignores them
+let forcedTabId = Number(params.get('tabId')) || null;
+let forcedSite = ['docs', 'slides', 'gmail', 'other'].includes(params.get('site'))
   ? params.get('site')
   : null;
+if (!forcedTabId && !forcedSite) {
+  forcedTabId = null;
+  forcedSite = null;
+} else {
+  chrome.storage.local.get({ debug: false }).then((values) => {
+    if (!values.debug) {
+      forcedTabId = null;
+      forcedSite = null;
+      refresh();
+    }
+  });
+}
 
 function gsLog(step, data) {
   try {
@@ -155,6 +185,13 @@ function applyStrings() {
   elements.formatXml.textContent = strings.popupFormatXml;
   elements.formatCsv.textContent = strings.popupFormatCsv;
   elements.formatHtml.textContent = strings.popupFormatHtml;
+  elements.formatPdf.textContent = strings.popupFormatPdf;
+  elements.formatTxt.textContent = strings.popupFormatTxt;
+  elements.limitLabel.textContent = strings.popupGmailLimit;
+  elements.attachmentsLabel.textContent = strings.popupGmailAttachments;
+  elements.gmailCopy.textContent = strings.popupGmailCopy;
+  elements.gmailBatch.textContent = strings.popupGmailBatch;
+  elements.limit.placeholder = strings.popupGmailLimitPlaceholder;
   elements.copyLogs.textContent = strings.popupCopyLogs;
   elements.noticeText.textContent = strings.popupUnsupported;
   elements.docsTitle.textContent = strings.popupSiteDocs;
@@ -268,6 +305,7 @@ async function refresh() {
   }
 
   const values = await chrome.storage.local.get({
+    preferredTool: 'auto',
     imageFolder: false,
     quality: 90,
     range: '',
@@ -305,13 +343,19 @@ elements.gmailExport.addEventListener('click', async () => {
   gsLog('gmail-export-click', { tabId: tab && tab.id });
   elements.gmailExport.disabled = true;
   setStatus(elements.gmailStatus, elements.gmailStatusText, strings.statusStarting, true, false);
-  await chrome.storage.local.set({ format: elements.format.value });
+  await chrome.storage.local.set({
+    format: elements.format.value,
+    limit: elements.limit.value.trim(),
+    attachmentsOnly: elements.attachmentsOnly.checked,
+  });
   const response = await chrome.runtime
     .sendMessage({
       target: 'googleshot',
       method: 'gmail-export',
       tabId: tab ? tab.id : null,
       format: elements.format.value,
+      limit: Number(elements.limit.value.trim()) || 0,
+      attachmentsOnly: elements.attachmentsOnly.checked,
     })
     .catch(() => null);
   elements.gmailExport.disabled = false;
@@ -332,6 +376,66 @@ elements.gmailExport.addEventListener('click', async () => {
       true
     );
   }
+});
+
+elements.gmailCopy.addEventListener('click', async () => {
+  const tab = await activeTab();
+  elements.gmailCopy.disabled = true;
+  setStatus(elements.gmailStatus, elements.gmailStatusText, strings.statusStarting, true, false);
+  const response = await chrome.runtime
+    .sendMessage({ target: 'googleshot', method: 'gmail-copy', tabId: tab ? tab.id : null })
+    .catch(() => null);
+  elements.gmailCopy.disabled = false;
+  if (response && response.ok) {
+    await navigator.clipboard.writeText(response.text || '');
+    setStatus(elements.gmailStatus, elements.gmailStatusText, strings.popupCopiedThread, false, false);
+  } else {
+    setStatus(
+      elements.gmailStatus,
+      elements.gmailStatusText,
+      response && response.error ? response.error : strings.statusFailed,
+      false,
+      true
+    );
+  }
+});
+
+elements.gmailBatch.addEventListener('click', async () => {
+  const tab = await activeTab();
+  await chrome.storage.local.set({ format: elements.format.value });
+  elements.gmailBatch.disabled = true;
+  setStatus(elements.gmailStatus, elements.gmailStatusText, strings.statusStarting, true, false);
+  const response = await chrome.runtime
+    .sendMessage({
+      target: 'googleshot',
+      method: 'gmail-batch-export',
+      tabId: tab ? tab.id : null,
+      format: elements.format.value,
+    })
+    .catch(() => null);
+  elements.gmailBatch.disabled = false;
+  if (response && response.ok) {
+    setStatus(
+      elements.gmailStatus,
+      elements.gmailStatusText,
+      `${response.count} -> ${response.title || ''}`,
+      false,
+      false
+    );
+  } else {
+    setStatus(
+      elements.gmailStatus,
+      elements.gmailStatusText,
+      response && response.error ? response.error : strings.statusFailed,
+      false,
+      true
+    );
+  }
+});
+
+document.getElementById('openOptions').addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+  window.close();
 });
 
 elements.copyLogs.addEventListener('click', async () => {

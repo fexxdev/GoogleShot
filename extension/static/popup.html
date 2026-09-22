@@ -367,6 +367,38 @@
           <div class="logo">GS</div>
           <h1>GoogleShot</h1>
           <span class="version" id="version"></span>
+          <button
+            class="icon-button"
+            id="openOptions"
+            title="Options"
+            style="
+              margin-left: 6px;
+              width: 26px;
+              height: 26px;
+              padding: 0;
+              border-radius: 8px;
+              background: var(--chip);
+              color: var(--muted);
+              border: 1px solid var(--border);
+              display: grid;
+              place-items: center;
+              box-shadow: none;
+            "
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                stroke="currentColor"
+                stroke-width="1.7"
+              />
+              <path
+                d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.3 1a8 8 0 0 0-1.7-1l-.3-2.4h-4l-.3 2.4a8 8 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a8 8 0 0 0 1.7 1l.3 2.4h4l.3-2.4a8 8 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5Z"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </header>
 
         <div class="site" id="site">
@@ -401,6 +433,8 @@
           <p class="card-title" id="gmailTitle"></p>
           <p class="card-desc" id="gmailDesc"></p>
           <button id="gmailExport"></button>
+          <button class="secondary" id="gmailCopy" style="margin-top: 8px"></button>
+          <button class="secondary" id="gmailBatch" style="margin-top: 8px"></button>
           <div class="status" id="gmailStatus">
             <div class="spinner"></div>
             <span id="gmailStatusText"></span>
@@ -445,12 +479,21 @@
               <label for="format" id="formatLabel"></label>
               <select id="format">
                 <option value="mbox" id="formatMbox"></option>
+                <option value="pdf" id="formatPdf"></option>
+                <option value="txt" id="formatTxt"></option>
                 <option value="json" id="formatJson"></option>
                 <option value="xml" id="formatXml"></option>
                 <option value="csv" id="formatCsv"></option>
                 <option value="html" id="formatHtml"></option>
               </select>
             </div>
+            <div class="field">
+              <label for="limit" id="limitLabel"></label>
+              <input type="text" id="limit" autocomplete="off" spellcheck="false" />
+            </div>
+            <label class="check">
+              <input type="checkbox" id="attachmentsOnly" /> <span id="attachmentsLabel"></span>
+            </label>
           </div>
 
           <div class="fields" id="debugFields">

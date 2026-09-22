@@ -1,5 +1,11 @@
 import { captureTab } from './capture.js';
-import { collectThread, EXPORT_FORMATS } from './gmail.js';
+import {
+  collectThread,
+  EXPORT_FORMATS,
+  buildAttachmentsZip,
+  buildText,
+  buildThreadsZip,
+} from './gmail.js';
 import { log, error, getLogs, setDebug } from './log.js';
 
 const GMAIL_URL_PATTERNS = ['https://mail.google.com/*'];
@@ -60,6 +66,9 @@ function buildStrings() {
     gmailBuilding: t('gmailBuilding'),
     gmailDone: (count) => t('gmailDone', count),
     gmailNotThread: t('errGmailNotThread'),
+    gmailNoAttachments: t('gmailNoAttachments'),
+    gmailNoSelection: t('gmailNoSelection'),
+    gmailBatchProgress: (current, total, subject) => t('gmailBatchProgress', current, total, subject),
     gmailUnauthorized: t('errGmailUnauthorized'),
     gmailFailed: (reason) => t('errGmailFailed', reason),
     popupCapture: t('popupCapture'),
@@ -84,6 +93,8 @@ function buildStrings() {
     popupFormatXml: t('gmailMenuFormat_xml'),
     popupFormatCsv: t('gmailMenuFormat_csv'),
     popupFormatHtml: t('gmailMenuFormat_html'),
+    popupFormatPdf: t('gmailMenuFormat_pdf'),
+    popupFormatTxt: t('gmailMenuFormat_txt'),
     popupGmailHint: t('popupGmailHint'),
     popupSiteDocs: t('popupSiteDocs'),
     popupSiteSlides: t('popupSiteSlides'),
@@ -113,6 +124,16 @@ function broadcast() {
 function setState(patch) {
   Object.assign(state, patch);
   broadcast();
+}
+
+async function recordHistory(entry) {
+  try {
+    const { history } = await chrome.storage.local.get({ history: [] });
+    const next = [{ at: new Date().toISOString(), ...entry }, ...history].slice(0, 50);
+    await chrome.storage.local.set({ history: next });
+  } catch {
+    // ignore
+  }
 }
 
 function blobToDataUrl(blob) {
@@ -230,11 +251,13 @@ async function gmailAuth(tabId) {
   return response.result;
 }
 
-async function exportGmailThread(tabId, requestedFormat) {
+async function exportGmailThread(tabId, requestedFormat, options = {}) {
   const strings = buildStrings();
   const formatName =
     requestedFormat && EXPORT_FORMATS[requestedFormat] ? requestedFormat : 'mbox';
   const format = EXPORT_FORMATS[formatName];
+  const attachmentsOnly = Boolean(options.attachmentsOnly);
+  const limit = Number(options.limit) > 0 ? Number(options.limit) : 0;
   const { threadId, account, ik, authuser } = await gmailAuth(tabId);
   log('gmail:auth-parsed', { threadId, account, authuser, ik: ik ? `${ik.slice(0, 4)}...` : null });
   if (!threadId) {
@@ -245,8 +268,12 @@ async function exportGmailThread(tabId, requestedFormat) {
     .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
     .then((response) => (response && response.ok ? response.result : null))
     .catch(() => null);
-  log('gmail:messages', { messages });
-  if (!messages || messages.length === 0) {
+  let selected = messages || [];
+  if (limit > 0 && selected.length > limit) {
+    selected = selected.slice(-limit);
+  }
+  log('gmail:messages', { total: messages ? messages.length : 0, used: selected.length });
+  if (!selected.length) {
     throw new Error(strings.gmailNotThread);
   }
 
@@ -254,7 +281,7 @@ async function exportGmailThread(tabId, requestedFormat) {
   const blocks = await collectThread({
     ik,
     authuser,
-    messages,
+    messages: selected,
     fetchText: (url) => fetchTextInPage(tabId, url),
     fetchBytes: (url) => fetchBytesInExtension(url),
     onProgress: (done, total) => {
@@ -270,7 +297,28 @@ async function exportGmailThread(tabId, requestedFormat) {
   setState({ message: strings.gmailBuilding, percent: 90 });
   const title = blocks[0].subject || 'gmail-thread';
   const safeTitle = sanitizeFilename(title);
-  const content = format.build(blocks, { threadId, account });
+
+  if (attachmentsOnly) {
+    const total = blocks.reduce((sum, entry) => sum + entry.attachments.length, 0);
+    if (!total) {
+      throw new Error(strings.gmailNoAttachments);
+    }
+    const zip = buildAttachmentsZip(blocks);
+    const filename = `${safeTitle}_allegati.zip`;
+    const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }));
+    await chrome.downloads.download({ url, filename });
+    log('gmail:download-started', { filename, attachments: total });
+    setState({ message: strings.gmailDone(blocks.length), percent: 100 });
+    recordHistory({
+      action: 'gmail',
+      title: safeTitle,
+      format: 'attachments',
+      count: total,
+    });
+    return { ok: true, count: blocks.length, title: safeTitle, format: 'zip' };
+  }
+
+  const content = await format.build(blocks, { threadId, account });
   const filename = `${safeTitle}.${format.extension}`;
   log('gmail:export-built', { format: formatName, bytes: content.length, filename });
   const blob = new Blob([content], { type: format.mime });
@@ -281,7 +329,113 @@ async function exportGmailThread(tabId, requestedFormat) {
   return { ok: true, count: blocks.length, title: safeTitle };
 }
 
-async function runGmail(tabId, format) {
+async function openThreadInPage(tabId, threadId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: (id) => {
+      location.hash = `#inbox/${id}`;
+    },
+    args: [threadId],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+}
+
+async function exportGmailBatch(tabId, options = {}) {
+  const strings = buildStrings();
+  const formatName =
+    options.format && EXPORT_FORMATS[options.format] ? options.format : 'mbox';
+  const format = EXPORT_FORMATS[formatName];
+
+  const selected = await chrome.tabs
+    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'selected' })
+    .then((response) => (response && response.ok ? response.result : null))
+    .catch(() => null);
+  log('gmail:batch-selected', { count: selected ? selected.length : 0 });
+  if (!selected || selected.length === 0) {
+    throw new Error(strings.gmailNoSelection);
+  }
+
+  const { ik, authuser } = await gmailAuth(tabId);
+  const files = {};
+  let done = 0;
+  for (const thread of selected) {
+    setState({
+      message: strings.gmailBatchProgress(done + 1, selected.length, thread.subject),
+      percent: (done / selected.length) * 90,
+    });
+    await openThreadInPage(tabId, thread.threadId);
+    const messages = await chrome.tabs
+      .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
+      .then((response) => (response && response.ok ? response.result : null))
+      .catch(() => null);
+    if (!messages || messages.length === 0) {
+      done += 1;
+      continue;
+    }
+    const blocks = await collectThread({
+      ik,
+      authuser,
+      messages,
+      fetchText: (url) => fetchTextInPage(tabId, url),
+      fetchBytes: (url) => fetchBytesInExtension(url),
+    });
+    if (blocks.length) {
+      let name = sanitizeFilename(blocks[0].subject || thread.subject || thread.threadId);
+      let counter = 2;
+      while (Object.prototype.hasOwnProperty.call(files, `${name}.${format.extension}`)) {
+        name = `${name}-${counter}`;
+        counter += 1;
+      }
+      const content = await format.build(blocks, { threadId: thread.threadId });
+      files[`${name}.${format.extension}`] = new Uint8Array(content);
+    }
+    done += 1;
+  }
+  if (Object.keys(files).length === 0) {
+    throw new Error(strings.gmailNotThread);
+  }
+  const zip = buildThreadsZip(files);
+  const filename = `gmail-threads-${selected.length}.zip`;
+  const url = await blobToDataUrl(new Blob([zip], { type: 'application/zip' }));
+  await chrome.downloads.download({ url, filename });
+  log('gmail:batch-download-started', { filename, threads: Object.keys(files).length });
+  setState({ message: strings.gmailDone(Object.keys(files).length), percent: 100 });
+  recordHistory({
+    action: 'gmail',
+    title: filename,
+    format: `${formatName} (batch)`,
+    count: Object.keys(files).length,
+  });
+  return { ok: true, count: Object.keys(files).length, title: filename };
+}
+
+async function copyGmailThread(tabId) {
+  const strings = buildStrings();
+  const { threadId, account, ik, authuser } = await gmailAuth(tabId);
+  if (!threadId) {
+    throw new Error(strings.gmailNotThread);
+  }
+  const messages = await chrome.tabs
+    .sendMessage(tabId, { target: 'googleshot-gmail', method: 'messages' })
+    .then((response) => (response && response.ok ? response.result : null))
+    .catch(() => null);
+  if (!messages || messages.length === 0) {
+    throw new Error(strings.gmailNotThread);
+  }
+  setState({ action: 'gmail', message: strings.gmailReading, percent: 30 });
+  const blocks = await collectThread({
+    ik,
+    authuser,
+    messages,
+    fetchText: (url) => fetchTextInPage(tabId, url),
+    fetchBytes: (url) => fetchBytesInExtension(url),
+  });
+  setState({ message: '', percent: 0 });
+  return { ok: true, text: buildText(blocks) };
+}
+
+async function runGmailBatch(tabId, options = {}) {
   if (state.running) {
     return { ok: false, error: t('statusAlreadyRunning') };
   }
@@ -291,7 +445,29 @@ async function runGmail(tabId, format) {
   state.error = null;
   setState({ message: t('statusStarting'), percent: 0 });
   try {
-    return await exportGmailThread(tabId, format);
+    return await exportGmailBatch(tabId, options);
+  } catch (err) {
+    error('gmail:batch-failed', err);
+    const message = err.message || String(err);
+    setState({ message: t('statusFailed'), percent: 0, error: message });
+    return { ok: false, error: message };
+  } finally {
+    state.running = false;
+    broadcast();
+  }
+}
+
+async function runGmail(tabId, format, options = {}) {
+  if (state.running) {
+    return { ok: false, error: t('statusAlreadyRunning') };
+  }
+  state.running = true;
+  state.action = 'gmail';
+  state.tabId = tabId;
+  state.error = null;
+  setState({ message: t('statusStarting'), percent: 0 });
+  try {
+    return await exportGmailThread(tabId, format, options);
   } catch (err) {
     error('gmail:failed', err);
     const message = err.message || String(err);
@@ -320,6 +496,12 @@ async function runCapture(tabId) {
       errors: strings,
     });
     setState({ message: t('statusDone', result.count, result.itemName), percent: 100 });
+    recordHistory({
+      action: 'capture',
+      title: result.title,
+      format: 'pdf',
+      count: result.count,
+    });
     return { ok: true, ...result };
   } catch (err) {
     error('capture:failed', err);
@@ -332,7 +514,7 @@ async function runCapture(tabId) {
   }
 }
 
-const MENU_FORMATS = ['mbox', 'json', 'xml', 'csv', 'html'];
+const MENU_FORMATS = ['mbox', 'pdf', 'txt', 'json', 'xml', 'csv', 'html'];
 
 function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
@@ -405,8 +587,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   }
+  if (message.method === 'gmail-batch-export') {
+    runGmailBatch(message.tabId, { format: message.format })
+      .then(sendResponse)
+      .catch((err) => {
+        error('gmail:batch-dispatch', err);
+        sendResponse({ ok: false, error: err.message || String(err) });
+      });
+    return true;
+  }
+  if (message.method === 'gmail-copy') {
+    copyGmailThread(message.tabId).then(sendResponse).catch((err) => {
+      error('gmail:copy', err);
+      sendResponse({ ok: false, error: err.message || String(err) });
+    });
+    return true;
+  }
   if (message.method === 'gmail-export') {
-    runGmail(message.tabId, message.format).then(sendResponse).catch((err) => {
+    runGmail(message.tabId, message.format, {
+      attachmentsOnly: message.attachmentsOnly,
+      limit: message.limit,
+    }).then(sendResponse).catch((err) => {
       error('gmail:dispatch', err);
       sendResponse({ ok: false, error: err.message || String(err) });
     });

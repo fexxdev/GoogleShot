@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildAttachmentsZip,
   buildCsv,
   buildHtml,
   buildJson,
   buildMbox,
+  buildPdf,
+  buildText,
+  buildThreadsZip,
   buildXml,
   collectThread,
   extractOriginalMessage,
@@ -157,4 +161,44 @@ test('buildHtml escapes the body and lists attachments', async () => {
 test('originalMessageUrl keeps the permmsgid colon literal', () => {
   const url = originalMessageUrl({ authuser: 2, ik: 'abc', permmsgid: 'msg-f:123' });
   assert.equal(url, 'https://mail.google.com/mail/u/2/?ik=abc&view=om&permmsgid=msg-f:123');
+});
+
+test('buildText writes a readable thread with attachments', async () => {
+  const entries = await collected();
+  const text = buildText(entries);
+  assert.match(text, /Da: .*erika@coopcampo\.it/);
+  assert.match(text, /Oggetto: sito Campo - Canù/);
+  assert.match(text, /Ciao Ragazzi,/);
+  assert.match(text, /\[allegato\] aiuti-2025\.pdf/);
+});
+
+test('buildPdf produces a valid PDF', async () => {
+  const entries = await collected();
+  const pdf = await buildPdf(entries);
+  assert.equal(Buffer.from(pdf.slice(0, 5)).toString(), '%PDF-');
+  assert.ok(pdf.length > 500);
+});
+
+test('buildAttachmentsZip packs the attachments', async () => {
+  const entries = await collected();
+  const zip = buildAttachmentsZip(entries);
+  assert.equal(Buffer.from(zip.slice(0, 2)).toString(), 'PK');
+  assert.ok(zip.length > 50);
+});
+
+test('buildAttachmentsZip renames duplicates', async () => {
+  const entries = await collected();
+  const doubled = [entries[0], entries[0]];
+  const zip = buildAttachmentsZip(doubled);
+  assert.equal(Buffer.from(zip.slice(0, 2)).toString(), 'PK');
+  assert.ok(zip.length > 50);
+});
+
+test('buildThreadsZip packs one file per thread', () => {
+  const zip = buildThreadsZip({
+    'thread one.mbox': new TextEncoder().encode('x'),
+    'thread two.mbox': new TextEncoder().encode('y'),
+  });
+  assert.equal(Buffer.from(zip.slice(0, 2)).toString(), 'PK');
+  assert.ok(zip.length > 50);
 });
