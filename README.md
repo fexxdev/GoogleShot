@@ -38,6 +38,8 @@ or a document:
 googleshot capture "https://docs.google.com/document/d/<id>/edit"
 ```
 
+Always put the URL in quotes. The `?` of query parameters is a glob character in zsh.
+
 GoogleShot reads the cookies over the Chrome DevTools Protocol, then captures every slide or page in a headless browser.
 
 3. Output for a deck:
