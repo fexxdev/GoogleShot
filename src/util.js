@@ -1,6 +1,3 @@
-import os from 'node:os';
-import path from 'node:path';
-
 export function parsePresentationId(input) {
   if (!input) {
     throw new Error('Missing presentation URL or ID.');
@@ -27,6 +24,3 @@ export function sanitizeFilename(name) {
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-export const PROFILE_DIR =
-  process.env.GOOGLESHOT_PROFILE || path.join(os.homedir(), '.googleshot', 'profile');

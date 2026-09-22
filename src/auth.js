@@ -1,11 +1,25 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { chromium } from 'playwright';
-import { PROFILE_DIR, sleep } from './util.js';
+import { profileDirFor, resolveBrowser, PROFILE_ROOT } from './browsers.js';
+import { sleep } from './util.js';
 
 const AUTH_COOKIES = new Set(['SID', 'HSID', 'SSID', 'SAPISID', '__Secure-1PSID', '__Secure-3PSID']);
 
-export async function launchContext({ headless = true } = {}) {
-  fs.mkdirSync(PROFILE_DIR, { recursive: true });
+function migrateLegacyProfile() {
+  const legacy = path.join(PROFILE_ROOT, 'profile');
+  const chromeProfile = profileDirFor('chrome');
+  if (fs.existsSync(legacy) && !fs.existsSync(chromeProfile)) {
+    fs.mkdirSync(path.dirname(chromeProfile), { recursive: true });
+    fs.renameSync(legacy, chromeProfile);
+  }
+}
+
+export async function launchContext({ headless = true, browserId = 'chrome' } = {}) {
+  migrateLegacyProfile();
+  const browser = resolveBrowser(browserId);
+  const profileDir = profileDirFor(browser.id);
+  fs.mkdirSync(profileDir, { recursive: true });
   const options = {
     headless,
     viewport: { width: 1600, height: 1000 },
@@ -16,14 +30,13 @@ export async function launchContext({ headless = true } = {}) {
     ],
     ignoreDefaultArgs: ['--enable-automation'],
   };
-  try {
-    return await chromium.launchPersistentContext(PROFILE_DIR, { ...options, channel: 'chrome' });
-  } catch (error) {
-    if (!/Executable doesn't exist|channel/.test(String(error.message))) {
-      throw error;
-    }
-    return await chromium.launchPersistentContext(PROFILE_DIR, options);
+  if (browser.channel) {
+    options.channel = browser.channel;
   }
+  if (browser.executablePath) {
+    options.executablePath = browser.executablePath;
+  }
+  return chromium.launchPersistentContext(profileDir, options);
 }
 
 export async function hasGoogleSession(context) {
@@ -31,17 +44,18 @@ export async function hasGoogleSession(context) {
   return cookies.some((cookie) => AUTH_COOKIES.has(cookie.name));
 }
 
-export async function login() {
-  console.log('Opening Google login...');
-  console.log(`Profile: ${PROFILE_DIR}`);
-  const context = await launchContext({ headless: false });
+export async function login(browser) {
+  console.log(`Opening ${browser.label}...`);
+  console.log(`Profile: ${profileDirFor(browser.id)}`);
+  const context = await launchContext({ headless: false, browserId: browser.id });
   try {
     const page = context.pages()[0] || (await context.newPage());
     await page.goto('https://accounts.google.com/', { waitUntil: 'domcontentloaded' });
+    console.log('Sign in with the Google account that can open your deck.');
 
     for (let attempt = 0; attempt < 900; attempt += 1) {
       if (await hasGoogleSession(context)) {
-        console.log('Login saved. You can close the browser.');
+        console.log('Login saved.');
         await sleep(1500);
         return;
       }
