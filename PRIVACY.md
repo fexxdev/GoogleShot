@@ -35,4 +35,4 @@ Nothing. There is no backend, no telemetry, no third-party service. The extensio
 
 ## Contact
 
-Open an issue on the repository: https://github.com/fexxdev/GoogleShot/issues
+fexxdev@gmail.com

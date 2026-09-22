@@ -39,7 +39,7 @@ GoogleShot has no backend. It talks only to Google, from your browser, on your b
 - host access to `docs.google.com`, `mail.google.com` and the attachment host — to read the page you ask for
 - `storage` — the settings and the local export history
 
-Full policy: https://github.com/fexxdev/GoogleShot/blob/main/PRIVACY.md
+Full policy: https://fexx.dev/googleshot/privacy
 
 ## Category
 
@@ -69,7 +69,7 @@ Icon: `extension/icons/icon-128.png`
   - Transmitted off the device? **No.** Everything is processed locally and saved to the download folder.
   - Sold, shared or used for advertising? **No.**
   - Authentication data, financial data, health data? **No.**
-- Privacy policy URL (required): https://github.com/fexxdev/GoogleShot/blob/main/PRIVACY.md
+- Privacy policy URL (required): https://fexx.dev/googleshot/privacy
 - Does it use remote code? **No** (all code is bundled; no CDN, no eval).
 - Single purpose: capture Google Docs and Slides to PDF, and download Gmail threads with the attachments.
 - Permission justifications (also in the detailed description):
