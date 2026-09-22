@@ -234,5 +234,35 @@
         "content": "$1"
       }
     }
+  },
+  "popupSiteDocs": {
+    "message": "Documento Google"
+  },
+  "popupSiteSlides": {
+    "message": "Presentazione Google"
+  },
+  "popupSiteGmail": {
+    "message": "Gmail"
+  },
+  "popupSiteOther": {
+    "message": "Sito non supportato"
+  },
+  "popupHintDocs": {
+    "message": "Cattura ogni pagina di questo documento in un PDF."
+  },
+  "popupHintSlides": {
+    "message": "Cattura ogni slide di questa presentazione in un PDF."
+  },
+  "popupHintGmail": {
+    "message": "Scarica la conversazione aperta con gli allegati in un file .mbox."
+  },
+  "popupOpenGmail": {
+    "message": "Apri Gmail"
+  },
+  "popupCopyLogs": {
+    "message": "Copia i log di debug"
+  },
+  "popupCopied": {
+    "message": "Copiato"
   }
 }

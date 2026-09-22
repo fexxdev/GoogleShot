@@ -8,12 +8,15 @@
       :root {
         color-scheme: light dark;
         --bg: #ffffff;
-        --fg: #202124;
+        --fg: #1f1f1f;
         --muted: #5f6368;
-        --border: #dadce0;
+        --border: #e0e3e7;
         --card: #f8fafd;
         --accent: #1a73e8;
+        --accent-hover: #1b66c9;
         --accent-fg: #ffffff;
+        --tool-bg: #eef3fd;
+        --tool-fg: #1a73e8;
         --warn-bg: #fef7e0;
         --warn-border: #f9d849;
         --warn-fg: #8a6d00;
@@ -21,17 +24,20 @@
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #202124;
+          --bg: #1e1f20;
           --fg: #e8eaed;
           --muted: #9aa0a6;
-          --border: #5f6368;
-          --card: #292a2d;
+          --border: #444746;
+          --card: #282a2c;
           --accent: #8ab4f8;
-          --accent-fg: #202124;
+          --accent-hover: #a8c7fa;
+          --accent-fg: #1f1f1f;
+          --tool-bg: #2d3b52;
+          --tool-fg: #8ab4f8;
           --warn-bg: #3c2f0b;
           --warn-border: #7a5900;
           --warn-fg: #fdd663;
-          --input-bg: #202124;
+          --input-bg: #1e1f20;
         }
       }
       * {
@@ -39,7 +45,7 @@
       }
       body {
         margin: 0;
-        width: 320px;
+        width: 340px;
         font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
         background: var(--bg);
         color: var(--fg);
@@ -47,63 +53,84 @@
       .wrap {
         padding: 16px;
       }
+
       header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
+        gap: 10px;
+        margin-bottom: 14px;
       }
       .logo {
-        width: 20px;
-        height: 20px;
-        border-radius: 5px;
-        background: var(--accent);
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #1a73e8, #4285f4);
         display: grid;
         place-items: center;
-        color: var(--accent-fg);
+        color: #fff;
         font-size: 11px;
         font-weight: 700;
+        letter-spacing: 0.3px;
+        box-shadow: 0 1px 3px rgba(26, 115, 232, 0.4);
       }
       h1 {
         font-size: 15px;
         font-weight: 600;
         margin: 0;
       }
-      .hint {
+      .version {
+        margin-left: auto;
+        font-size: 11px;
         color: var(--muted);
-        font-size: 12px;
-        margin: 0 0 14px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 2px 8px;
       }
-      .notice {
-        display: none;
-        align-items: flex-start;
-        gap: 8px;
-        background: var(--warn-bg);
-        border: 1px solid var(--warn-border);
-        color: var(--warn-fg);
-        border-radius: 10px;
-        padding: 10px 12px;
-        margin-bottom: 12px;
-        font-size: 12px;
-      }
-      .notice.visible {
+
+      .site {
         display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--tool-bg);
+        color: var(--tool-fg);
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 12px;
       }
-      .notice svg {
-        flex: 0 0 auto;
-        margin-top: 1px;
+      .site.off {
+        background: var(--card);
+        color: var(--muted);
       }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .card-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 2px;
+      }
+      .card-desc {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+
       .status {
         display: none;
         align-items: center;
         gap: 8px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 9px 12px;
-        margin-bottom: 12px;
         font-size: 12px;
         color: var(--muted);
+        margin-top: 10px;
+        min-height: 16px;
       }
       .status.visible {
         display: flex;
@@ -121,75 +148,105 @@
       .status.running .spinner {
         display: block;
       }
+      .status.error {
+        color: #d93025;
+      }
+      @media (prefers-color-scheme: dark) {
+        .status.error {
+          color: #f28b82;
+        }
+      }
       @keyframes spin {
         to {
           transform: rotate(360deg);
         }
       }
+
       button {
         width: 100%;
         border: 0;
-        border-radius: 10px;
-        padding: 11px 14px;
+        border-radius: 9px;
+        padding: 10px 14px;
         font: inherit;
         font-weight: 600;
         cursor: pointer;
         background: var(--accent);
         color: var(--accent-fg);
+        transition: background 0.15s ease;
       }
       button:hover:not(:disabled) {
-        filter: brightness(1.06);
+        background: var(--accent-hover);
       }
       button:disabled {
-        opacity: 0.55;
+        opacity: 0.5;
         cursor: default;
       }
       button.secondary {
-        margin-top: 8px;
         background: transparent;
         color: var(--accent);
         border: 1px solid var(--border);
         font-weight: 500;
       }
-      details {
-        margin-top: 14px;
+      button.secondary:hover:not(:disabled) {
+        background: var(--card);
+      }
+
+      .notice {
+        display: none;
+        align-items: flex-start;
+        gap: 10px;
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        color: var(--warn-fg);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+      .notice.visible {
+        display: flex;
+      }
+
+      details.advanced {
         border-top: 1px solid var(--border);
         padding-top: 10px;
+        margin-top: 4px;
       }
-      summary {
+      details.advanced summary {
         cursor: pointer;
         font-size: 12px;
         font-weight: 500;
-        color: var(--accent);
+        color: var(--muted);
         list-style: none;
         display: flex;
         align-items: center;
         gap: 6px;
         user-select: none;
       }
-      summary::-webkit-details-marker {
+      details.advanced summary::-webkit-details-marker {
         display: none;
       }
-      summary::before {
+      details.advanced summary::before {
         content: '';
         border: solid currentColor;
         border-width: 0 1.6px 1.6px 0;
         padding: 2.4px;
         transform: rotate(-45deg);
         transition: transform 0.15s ease;
+        margin-left: 2px;
       }
-      details[open] summary::before {
+      details.advanced[open] summary::before {
         transform: rotate(45deg);
       }
-      .fields {
-        margin-top: 10px;
+      details.advanced .fields {
+        margin-top: 12px;
         display: flex;
         flex-direction: column;
         gap: 9px;
       }
       .field {
         display: grid;
-        grid-template-columns: 96px 1fr;
+        grid-template-columns: 104px 1fr;
         align-items: center;
         gap: 8px;
         font-size: 12px;
@@ -225,6 +282,14 @@
         accent-color: var(--accent);
         margin: 0;
       }
+
+      .logs {
+        margin-top: 10px;
+      }
+      .logs button {
+        font-size: 12px;
+        padding: 8px 12px;
+      }
     </style>
   </head>
   <body>
@@ -232,12 +297,19 @@
       <header>
         <div class="logo">GS</div>
         <h1>GoogleShot</h1>
-        <span id="version" style="margin-left:auto;font-size:11px;color:var(--muted)"></span>
+        <span class="version" id="version"></span>
       </header>
-      <p class="hint" id="hint"></p>
+
+      <div class="site" id="site">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" id="siteIcon">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+          <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" stroke="currentColor" stroke-width="1.6" />
+        </svg>
+        <span id="siteLabel"></span>
+      </div>
 
       <div class="notice" id="notice">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-top: 2px; flex: 0 0 auto">
           <path
             d="M12 3 2 20h20L12 3Zm0 5.5v5m0 3v.5"
             stroke="currentColor"
@@ -249,20 +321,30 @@
         <span id="noticeText"></span>
       </div>
 
-      <div class="status" id="status">
-        <div class="spinner"></div>
-        <span id="statusText"></span>
+      <div class="card" id="docsCard" hidden>
+        <p class="card-title" id="docsTitle"></p>
+        <p class="card-desc" id="docsDesc"></p>
+        <button id="capture"></button>
+        <div class="status" id="docsStatus">
+          <div class="spinner"></div>
+          <span id="docsStatusText"></span>
+        </div>
       </div>
 
-      <button id="capture"></button>
-      <button id="gmailExport"></button>
-      <button class="secondary" id="open"></button>
+      <div class="card" id="gmailCard" hidden>
+        <p class="card-title" id="gmailTitle"></p>
+        <p class="card-desc" id="gmailDesc"></p>
+        <button id="gmailExport"></button>
+        <div class="status" id="gmailStatus">
+          <div class="spinner"></div>
+          <span id="gmailStatusText"></span>
+        </div>
+      </div>
 
-      <button class="secondary" id="copyLogs" style="display: none">Copy debug logs</button>
-
-      <details id="advanced">
+      <details class="advanced" id="advanced" hidden>
         <summary id="advancedLabel"></summary>
-        <div class="fields">
+
+        <div class="fields" id="docsFields" hidden>
           <div class="field">
             <label for="range" id="rangeLabel"></label>
             <input type="text" id="range" autocomplete="off" spellcheck="false" />
@@ -290,6 +372,10 @@
             </select>
           </div>
           <label class="check"><input type="checkbox" id="images" /> <span id="imagesLabel"></span></label>
+        </div>
+
+        <div class="logs" id="logsSection" hidden>
+          <button class="secondary" id="copyLogs"></button>
         </div>
       </details>
     </div>

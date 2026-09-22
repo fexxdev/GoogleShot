@@ -234,5 +234,35 @@
         "content": "$1"
       }
     }
+  },
+  "popupSiteDocs": {
+    "message": "Google Docs"
+  },
+  "popupSiteSlides": {
+    "message": "Google Slides"
+  },
+  "popupSiteGmail": {
+    "message": "Gmail"
+  },
+  "popupSiteOther": {
+    "message": "No supported site"
+  },
+  "popupHintDocs": {
+    "message": "Capture every page of this document as a PDF."
+  },
+  "popupHintSlides": {
+    "message": "Capture every slide of this presentation as a PDF."
+  },
+  "popupHintGmail": {
+    "message": "Download the open thread with the attachments as an .mbox file."
+  },
+  "popupOpenGmail": {
+    "message": "Open Gmail"
+  },
+  "popupCopyLogs": {
+    "message": "Copy debug logs"
+  },
+  "popupCopied": {
+    "message": "Copied"
   }
 }

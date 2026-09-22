@@ -1,14 +1,24 @@
 const elements = {
-  hint: document.getElementById('hint'),
+  version: document.getElementById('version'),
+  site: document.getElementById('site'),
+  siteLabel: document.getElementById('siteLabel'),
   notice: document.getElementById('notice'),
   noticeText: document.getElementById('noticeText'),
-  status: document.getElementById('status'),
-  statusText: document.getElementById('statusText'),
+  docsCard: document.getElementById('docsCard'),
+  docsTitle: document.getElementById('docsTitle'),
+  docsDesc: document.getElementById('docsDesc'),
+  docsStatus: document.getElementById('docsStatus'),
+  docsStatusText: document.getElementById('docsStatusText'),
   capture: document.getElementById('capture'),
+  gmailCard: document.getElementById('gmailCard'),
+  gmailTitle: document.getElementById('gmailTitle'),
+  gmailDesc: document.getElementById('gmailDesc'),
+  gmailStatus: document.getElementById('gmailStatus'),
+  gmailStatusText: document.getElementById('gmailStatusText'),
   gmailExport: document.getElementById('gmailExport'),
-  copyLogs: document.getElementById('copyLogs'),
-  open: document.getElementById('open'),
-  advanced: document.getElementById('advancedLabel'),
+  advanced: document.getElementById('advanced'),
+  advancedLabel: document.getElementById('advancedLabel'),
+  docsFields: document.getElementById('docsFields'),
   range: document.getElementById('range'),
   rangeLabel: document.getElementById('rangeLabel'),
   speed: document.getElementById('speed'),
@@ -22,17 +32,27 @@ const elements = {
   qualityLabel: document.getElementById('qualityLabel'),
   images: document.getElementById('images'),
   imagesLabel: document.getElementById('imagesLabel'),
+  logsSection: document.getElementById('logsSection'),
+  copyLogs: document.getElementById('copyLogs'),
 };
 
 const FALLBACK = {
-  popupGmailExport: 'Export this thread',
-  popupGmailHint: 'Download the open Gmail thread with the attachments as an .mbox file.',
+  statusReady: 'Ready.',
+  popupSiteDocs: 'Google Docs',
+  popupSiteSlides: 'Google Slides',
+  popupSiteGmail: 'Gmail',
+  popupSiteOther: 'No supported site',
+  popupHintDocs: 'Capture every page of this document as a PDF.',
+  popupHintSlides: 'Capture every slide of this presentation as a PDF.',
+  popupHintGmail: 'Download the open thread with the attachments as an .mbox file.',
   popupCapture: 'Capture this tab',
-  popupCaptureHint: 'Capture every slide of a deck or every page of a document.',
-  popupOpenDocs: 'Open docs.google.com',
-  popupSaveImages: 'Also save the JPEG images',
-  popupQuality: 'JPEG quality',
+  popupGmailExport: 'Export this thread',
+  popupOpenDocs: 'Open a Google Doc or a Slides deck',
+  popupOpenGmail: 'Open Gmail',
+  popupUnsupported: 'This tool needs a Google Doc, a Slides deck or a Gmail thread.',
   popupAdvanced: 'Advanced options',
+  popupCopyLogs: 'Copy debug logs',
+  popupCopied: 'Copied',
   popupRange: 'Pages / slides',
   popupRangePlaceholder: 'All. Example: 1-5,8',
   popupSpeed: 'Capture speed',
@@ -41,18 +61,19 @@ const FALLBACK = {
   popupSpeedSafe: 'Safe (slower)',
   popupFilename: 'File name',
   popupFilenamePlaceholder: 'Document title',
-  popupUnsupported: 'Open a Google Doc or a Google Slides deck first.',
-  statusReady: 'Ready.',
+  popupQuality: 'JPEG quality',
+  popupSaveImages: 'Also save the JPEG images',
+  errGmailNotThread: 'Open a Gmail thread first.',
+  errUnsupportedPage: "Doesn't work here. Open a Google Doc or a Google Slides deck.",
 };
 
 let strings = { ...FALLBACK };
 
-const isGooglePage = (url) =>
-  Boolean(url && /^https:\/\/docs\.google\.com\/(document|presentation)\/d\//.test(url));
-
-const isGmailPage = (url) => Boolean(url && /^https:\/\/mail\.google\.com\//.test(url));
-
-const forcedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
+const params = new URLSearchParams(location.search);
+const forcedTabId = Number(params.get('tabId')) || null;
+const forcedSite = ['docs', 'slides', 'gmail', 'other'].includes(params.get('site'))
+  ? params.get('site')
+  : null;
 
 function gsLog(step, data) {
   console.log('[GS] popup:' + step, data === undefined ? '' : data);
@@ -62,6 +83,22 @@ function gsLog(step, data) {
     // ignore
   }
 }
+
+const detectSite = (url) => {
+  if (!url) {
+    return 'other';
+  }
+  if (/^https:\/\/docs\.google\.com\/document\/d\//.test(url)) {
+    return 'docs';
+  }
+  if (/^https:\/\/docs\.google\.com\/presentation\/d\//.test(url)) {
+    return 'slides';
+  }
+  if (/^https:\/\/mail\.google\.com\//.test(url)) {
+    return 'gmail';
+  }
+  return 'other';
+};
 
 async function activeTab() {
   if (forcedTabId) {
@@ -74,9 +111,9 @@ async function activeTab() {
 function applyStrings() {
   elements.capture.textContent = strings.popupCapture;
   elements.gmailExport.textContent = strings.popupGmailExport;
-  elements.open.textContent = strings.popupOpenDocs;
-  elements.noticeText.textContent = strings.popupUnsupported;
-  elements.advanced.textContent = strings.popupAdvanced;
+  elements.docsDesc.textContent = strings.popupHintDocs;
+  elements.gmailDesc.textContent = strings.popupHintGmail;
+  elements.advancedLabel.textContent = strings.popupAdvanced;
   elements.rangeLabel.textContent = strings.popupRange;
   elements.speedLabel.textContent = strings.popupSpeed;
   elements.speedFast.textContent = strings.popupSpeedFast;
@@ -85,27 +122,19 @@ function applyStrings() {
   elements.filenameLabel.textContent = strings.popupFilename;
   elements.qualityLabel.textContent = strings.popupQuality;
   elements.imagesLabel.textContent = strings.popupSaveImages;
+  elements.copyLogs.textContent = strings.popupCopyLogs;
+  elements.noticeText.textContent = strings.popupUnsupported;
+  elements.docsTitle.textContent = strings.popupSiteDocs;
+  elements.gmailTitle.textContent = strings.popupSiteGmail;
   elements.range.placeholder = strings.popupRangePlaceholder;
   elements.filename.placeholder = strings.popupFilenamePlaceholder;
 }
 
-function setStatus(text, running) {
-  elements.statusText.textContent = text || '';
-  elements.status.classList.toggle('visible', Boolean(text));
-  elements.status.classList.toggle('running', Boolean(running));
-}
-
-function render(state) {
-  if (!state) {
-    return;
-  }
-  if (state.running) {
-    setStatus(state.message, true);
-  } else if (state.error) {
-    setStatus(state.error, false);
-  } else {
-    setStatus(state.message, false);
-  }
+function setStatus(element, textElement, text, running, error) {
+  textElement.textContent = text || '';
+  element.classList.toggle('visible', Boolean(text));
+  element.classList.toggle('running', Boolean(running));
+  element.classList.toggle('error', Boolean(error) && !running);
 }
 
 async function loadStrings() {
@@ -116,36 +145,78 @@ async function loadStrings() {
       return response.status || strings.statusReady;
     }
   } catch {
-    // use the fallbacks
+    // fallbacks
   }
   return strings.statusReady;
+}
+
+function renderState(state, site) {
+  if (!state || !state.running) {
+    return;
+  }
+  const isGmail = state.action === 'gmail';
+  if (site === 'gmail' || isGmail) {
+    setStatus(elements.gmailStatus, elements.gmailStatusText, state.message, true, false);
+  } else {
+    setStatus(elements.docsStatus, elements.docsStatusText, state.message, true, false);
+  }
 }
 
 async function refresh() {
   const version = chrome.runtime.getManifest().version;
   gsLog('refresh-start', { forcedTabId, version });
-  const versionElement = document.getElementById('version');
-  if (versionElement) {
-    versionElement.textContent = 'v' + version;
-  }
+  elements.version.textContent = 'v' + version;
+
   const status = await loadStrings();
   applyStrings();
 
   const tab = await activeTab();
   const url = tab ? tab.url : '';
-  gsLog('active-tab', { tabId: tab && tab.id, url });
-  const allowed = isGooglePage(url);
-  const gmail = isGmailPage(url);
-  elements.capture.style.display = allowed ? '' : 'none';
-  elements.gmailExport.style.display = gmail ? '' : 'none';
-  elements.hint.textContent = gmail ? strings.popupGmailHint : strings.popupCaptureHint;
-  elements.copyLogs.style.display = '';
-  elements.notice.classList.toggle('visible', !allowed && !gmail);
-  elements.capture.disabled = !allowed;
-  if (allowed || gmail) {
-    setStatus(status, false);
+  const site = forcedSite || detectSite(url);
+  gsLog('active-tab', { tabId: tab && tab.id, site, url });
+
+  const isDocs = site === 'docs' || site === 'slides';
+  const isGmail = site === 'gmail';
+
+  if (isDocs) {
+    elements.siteLabel.textContent = site === 'docs' ? strings.popupSiteDocs : strings.popupSiteSlides;
+    elements.site.classList.remove('off');
+  } else if (isGmail) {
+    elements.siteLabel.textContent = strings.popupSiteGmail;
+    elements.site.classList.remove('off');
   } else {
-    setStatus('', false);
+    elements.siteLabel.textContent = strings.popupSiteOther;
+    elements.site.classList.add('off');
+  }
+
+  elements.docsCard.hidden = !isDocs;
+  elements.gmailCard.hidden = !isGmail;
+  elements.notice.classList.toggle('visible', !isDocs && !isGmail);
+  elements.advanced.hidden = !isDocs && !isGmail;
+  elements.docsFields.hidden = !isDocs;
+  elements.logsSection.hidden = false;
+
+  if (isDocs) {
+    elements.docsDesc.textContent =
+      site === 'docs' ? strings.popupHintDocs : strings.popupHintSlides;
+    setStatus(elements.docsStatus, elements.docsStatusText, status, false, false);
+  }
+  if (isGmail) {
+    setStatus(elements.gmailStatus, elements.gmailStatusText, status, false, false);
+  }
+
+  try {
+    const state = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'status' });
+    if (state && state.ok) {
+      renderState(state.state, site);
+      if (state.state && !state.state.running && state.state.error && site !== 'other') {
+        const target = state.state.action === 'gmail' ? elements.gmailStatus : elements.docsStatus;
+        const text = state.state.action === 'gmail' ? elements.gmailStatusText : elements.docsStatusText;
+        setStatus(target, text, state.state.error, false, true);
+      }
+    }
+  } catch {
+    // ignore
   }
 
   const values = await chrome.storage.local.get({
@@ -169,6 +240,7 @@ elements.capture.addEventListener('click', async () => {
     filename: elements.filename.value.trim(),
   });
   const tab = await activeTab();
+  gsLog('capture-click', { tabId: tab && tab.id });
   chrome.runtime.sendMessage({
     target: 'googleshot',
     method: 'capture',
@@ -188,16 +260,22 @@ elements.gmailExport.addEventListener('click', async () => {
   window.close();
 });
 
+elements.notice.addEventListener('click', async () => {
+  const tab = await activeTab();
+  const url = tab ? tab.url : '';
+  if (/^https:\/\/mail\.google\.com\//.test(url)) {
+    chrome.tabs.create({ url: 'https://docs.google.com/' });
+  } else {
+    chrome.tabs.create({ url: 'https://mail.google.com/' });
+  }
+  window.close();
+});
+
 elements.copyLogs.addEventListener('click', async () => {
   const response = await chrome.runtime.sendMessage({ target: 'googleshot', method: 'logs' });
   const text = JSON.stringify(response && response.logs ? response.logs : [], null, 1);
   await navigator.clipboard.writeText(text);
-  elements.copyLogs.textContent = 'Copied';
-});
-
-elements.open.addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://docs.google.com/' });
-  window.close();
+  elements.copyLogs.textContent = strings.popupCopied;
 });
 
 elements.images.addEventListener('change', () => {
@@ -210,7 +288,8 @@ elements.quality.addEventListener('change', () => {
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message && message.target === 'googleshot-popup' && message.state) {
-    render(message.state);
+    const site = message.state.action === 'gmail' ? 'gmail' : 'docs';
+    renderState(message.state, site);
   }
 });
 
