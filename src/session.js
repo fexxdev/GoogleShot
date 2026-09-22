@@ -2,13 +2,69 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
-import { PROFILE_ROOT } from './browsers.js';
+import { PROFILE_ROOT, systemColorScheme } from './browsers.js';
 import { sleep } from './util.js';
 
 const PORT_CANDIDATES = [9222, 9223, 9224, 9225];
 const COOKIES_PATH = path.join(PROFILE_ROOT, 'cookies.json');
 
 const AUTH_COOKIES = new Set(['SID', 'HSID', 'SSID', 'SAPISID', '__Secure-1PSID', '__Secure-3PSID']);
+
+const SESSION_COOKIES = new Set([
+  'SIDCC',
+  '__Secure-1PSIDCC',
+  '__Secure-3PSIDCC',
+  '__Secure-1PAPISID',
+  '__Secure-3PAPISID',
+  '__Secure-1PSIDTS',
+  '__Secure-3PSIDTS',
+  'LSID',
+  'OSID',
+  'APISID',
+  'ACCOUNT_CHOOSER',
+  '__Host-3PLSID',
+  '__Host-1PLSID',
+  '__Host-GAPS',
+  'AEC',
+  'NID',
+]);
+
+const GOOGLE_USERCONTENT = /(^|\.)googleusercontent\.com$/;
+
+function toPlaywrightCookie(cookie) {
+  if (!cookie.domain || !cookie.name) {
+    return null;
+  }
+  const result = {
+    name: cookie.name,
+    value: cookie.value,
+    domain: cookie.domain,
+    path: cookie.path || '/',
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: Boolean(cookie.secure),
+  };
+  if (cookie.expires && cookie.expires > 0) {
+    result.expires = cookie.expires;
+  }
+  if (cookie.sameSite === 'Strict' || cookie.sameSite === 'Lax' || cookie.sameSite === 'None') {
+    result.sameSite = cookie.sameSite;
+  }
+  return result;
+}
+
+function isWantedCookie(cookie) {
+  const domain = cookie.domain.replace(/^\./, '');
+  if (domain === 'docs.google.com') {
+    return true;
+  }
+  if (GOOGLE_USERCONTENT.test(cookie.domain)) {
+    return true;
+  }
+  if (domain === 'google.com') {
+    return AUTH_COOKIES.has(cookie.name) || SESSION_COOKIES.has(cookie.name);
+  }
+  return false;
+}
 
 export async function fetchDebugInfo(port) {
   const controller = new AbortController();
@@ -193,9 +249,7 @@ export async function hasGoogleSession(context) {
 
 export async function readCookiesFromContext(context, label = 'browser') {
   const cookies = await context.cookies();
-  const relevant = cookies.filter((cookie) =>
-    /(^|\.)google\.com$|(^|\.)googleusercontent\.com$/.test(cookie.domain)
-  );
+  const relevant = cookies.filter(isWantedCookie);
   if (!relevant.some((cookie) => AUTH_COOKIES.has(cookie.name))) {
     throw new Error(`No Google session in ${label}. Sign in at https://accounts.google.com first.`);
   }
@@ -216,27 +270,6 @@ export function loadCookies() {
   }
 }
 
-function toPlaywrightCookie(cookie) {
-  if (!cookie.domain || !cookie.name) {
-    return null;
-  }
-  const result = {
-    name: cookie.name,
-    value: cookie.value,
-    domain: cookie.domain,
-    path: cookie.path || '/',
-    httpOnly: Boolean(cookie.httpOnly),
-    secure: Boolean(cookie.secure),
-  };
-  if (cookie.expires && cookie.expires > 0) {
-    result.expires = cookie.expires;
-  }
-  if (cookie.sameSite === 'Strict' || cookie.sameSite === 'Lax' || cookie.sameSite === 'None') {
-    result.sameSite = cookie.sameSite;
-  }
-  return result;
-}
-
 export async function launchHeadless(cookies, { deviceScaleFactor = 1.5 } = {}) {
   const options = {
     headless: true,
@@ -252,6 +285,7 @@ export async function launchHeadless(cookies, { deviceScaleFactor = 1.5 } = {}) 
   const context = await browser.newContext({
     viewport: { width: 1600, height: 1000 },
     deviceScaleFactor,
+    colorScheme: systemColorScheme(),
   });
   await context.addCookies(cookies.map(toPlaywrightCookie).filter(Boolean));
   return { browser, context };

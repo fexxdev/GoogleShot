@@ -3,7 +3,9 @@ import { sleep } from './util.js';
 const CANVAS_SELECTOR = '#canvas';
 const FILMSTRIP_SELECTOR = '.punch-filmstrip-scroll';
 const DOC_EDITOR_SELECTOR = '.kix-appview-editor';
+const DOC_TILES_SELECTOR = '.kix-rotatingtilemanager';
 const DOC_PAGE_SELECTOR = '.kix-page-paginated';
+const DOC_SCROLL_STEP = 400;
 
 async function currentSlideId(page) {
   const match = page.url().match(/#slide=id\.([a-zA-Z0-9_-]+)/);
@@ -44,30 +46,40 @@ async function setZoomTo100(page) {
   }
 }
 
-async function scrollDocToPage(page, index) {
-  await page.evaluate(
-    ({ pageIndex, editorSelector, tilesSelector, pageSelector }) => {
-      const editor = document.querySelector(editorSelector);
-      const tiles = editor?.querySelector(tilesSelector);
-      const target = document.querySelectorAll(pageSelector)[pageIndex];
-      if (!editor || !tiles || !target) {
-        return;
+async function docPagePositions(page) {
+  return page.evaluate(
+    ({ tilesSelector, pageSelector }) => {
+      const tiles = document.querySelector(tilesSelector);
+      const content = tiles?.querySelector('.kix-rotatingtilemanager-content');
+      if (!tiles || !content) {
+        return [];
       }
-      let top = 0;
-      let node = target;
-      while (node && node !== tiles) {
-        top += node.offsetTop;
-        node = node.offsetParent;
-      }
-      editor.scrollTop = Math.max(0, top - tiles.offsetTop - 20);
+      const base = tiles.offsetTop + content.offsetTop;
+      return Array.from(document.querySelectorAll(pageSelector)).map((element) => ({
+        index: Number(element.style.zIndex || 0),
+        position: Math.round(base + element.offsetTop),
+      }));
     },
-    {
-      pageIndex: index,
-      editorSelector: DOC_EDITOR_SELECTOR,
-      tilesSelector: '.kix-rotatingtilemanager',
-      pageSelector: DOC_PAGE_SELECTOR,
-    }
+    { tilesSelector: DOC_TILES_SELECTOR, pageSelector: DOC_PAGE_SELECTOR }
   );
+}
+
+async function docPageElement(page, number) {
+  const domIndex = await page.evaluate(
+    ({ pageSelector, wanted }) => {
+      const pages = Array.from(document.querySelectorAll(pageSelector));
+      for (let index = 0; index < pages.length; index += 1) {
+        const rect = pages[index].getBoundingClientRect();
+        const atTop = rect.top < 150 && rect.bottom > 150;
+        if (atTop && Number(pages[index].style.zIndex || 0) === wanted) {
+          return index;
+        }
+      }
+      return -1;
+    },
+    { pageSelector: DOC_PAGE_SELECTOR, wanted: number }
+  );
+  return domIndex === -1 ? null : page.locator(DOC_PAGE_SELECTOR).nth(domIndex);
 }
 
 export async function captureDocument(
@@ -90,27 +102,57 @@ export async function captureDocument(
       .trim();
     await page.locator(DOC_PAGE_SELECTOR).first().waitFor({ state: 'visible', timeout: 60000 });
     await page.evaluate(() => document.fonts.ready);
+    await sleep(1000);
 
-    if ((await page.locator(DOC_EDITOR_SELECTOR).count()) === 0) {
+    const editor = page.locator(DOC_EDITOR_SELECTOR).first();
+    if ((await editor.count()) === 0) {
       throw new Error('Cannot find the document editor.');
-    }
-
-    const total = await page.locator(DOC_PAGE_SELECTOR).count();
-    if (total === 0) {
-      throw new Error('No pages found.');
     }
     onProgress(`Document: ${title || documentId}`);
 
+    const byIndex = new Map();
+    const remember = (list) => {
+      for (const entry of list) {
+        if (!byIndex.has(entry.index)) {
+          byIndex.set(entry.index, entry.position);
+        }
+      }
+    };
+    remember(await docPagePositions(page));
+    const scrollHeight = await editor.evaluate((element) => element.scrollHeight);
+    let position = 0;
+    let guard = 0;
+    while (position < scrollHeight && guard < 2000) {
+      guard += 1;
+      await editor.evaluate((element, value) => {
+        element.scrollTop = value;
+      }, position);
+      await sleep(350);
+      remember(await docPagePositions(page));
+      position += DOC_SCROLL_STEP;
+    }
+    if (byIndex.size === 0) {
+      throw new Error('No pages found.');
+    }
+    const targets = Array.from(byIndex, ([index, targetPosition]) => ({
+      index,
+      position: targetPosition,
+    })).sort((a, b) => a.index - b.index);
+
     const pages = [];
-    for (let index = 0; index < total; index += 1) {
-      await scrollDocToPage(page, index);
-      const canvas = page.locator(DOC_PAGE_SELECTOR).nth(index).locator('canvas').first();
-      await canvas.waitFor({ state: 'visible', timeout: 30000 });
+    for (const target of targets) {
+      await editor.evaluate((element, value) => {
+        element.scrollTop = Math.max(0, value);
+      }, target.position - 70);
       await sleep(400);
-      pages.push(
-        await page.locator(DOC_PAGE_SELECTOR).nth(index).screenshot({ type: 'jpeg', quality })
-      );
-      onProgress(`Page ${pages.length} of ${total} captured`);
+      const locator = await docPageElement(page, target.index);
+      if (!locator) {
+        continue;
+      }
+      await locator.locator('canvas').first().waitFor({ state: 'visible', timeout: 15000 });
+      await sleep(350);
+      pages.push(await locator.screenshot({ type: 'jpeg', quality }));
+      onProgress(`Page ${pages.length} of ${targets.length} captured`);
     }
     if (pages.length === 0) {
       throw new Error('No pages found.');

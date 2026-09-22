@@ -80,6 +80,11 @@ After the first capture, GoogleShot saves the cookies in `~/.googleshot/cookies.
 - Slide images are about 1443x813 pixels (1.5x scale). A 318 slide deck is about 55 MB.
 - Use a lower `--quality` for smaller files. Quality 80 is about 20% smaller.
 
+## Environment
+
+- `GOOGLESHOT_COLOR_SCHEME` — `dark` or `light`. The captures follow the system theme. Set this to override the detection.
+- `GOOGLESHOT_HOME` — folder for the cookies and the config. Default: `~/.googleshot`.
+
 ## Security
 
 `~/.googleshot/cookies.json` contains your Google session cookies. Keep this file private. GoogleShot writes it with mode 600.
